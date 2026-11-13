@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}ติดตามการส่งรายงาน{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>ติดตามการส่งรายงาน</h1><p>รายงานตรวจต้องส่งภายใน {{ summary.audit_deadline }} น. และรายงานประจำวันภายใน {{ summary.report_deadline }} น. {% if summary.is_today %}หน้านี้อัปเดตอัตโนมัติทุก 1 นาที{% endif %}</p></div>
+  <form class="page-actions" method="get">
+    <input class="input" type="date" name="date" value="{{ summary.date.isoformat() }}" max="{{ now.date().isoformat() }}" onchange="this.form.submit()" aria-label="วันที่">
+    {% if not summary.is_today %}<a class="btn" href="{{ url_for('admin.monitor') }}">วันนี้</a>{% endif %}
+  </form>
+</div>
+
+<div class="stack-lg" id="monitor" data-url="{{ url_for('admin.monitor_data', date=summary.date.isoformat()) }}" data-live="{{ 'true' if summary.is_today else 'false' }}" data-seen="{{ rows|selectattr('audit.id')|list|length + rows|selectattr('report.id')|list|length }}">
+  <div class="figures">
+    <div class="figure"><div class="label">ส่งครบแล้ว</div><div class="value"><span data-k="rate">{{ summary.rate|round(0)|int }}</span><small>%</small></div><div class="hint">ครบ <span data-k="complete">{{ summary.complete }}</span> จาก {{ summary.branches }} สาขา</div></div>
+    <div class="figure"><div class="label">ตรวจเช้าตรงเวลา</div><div class="value" data-k="audit.ON_TIME">{{ summary.audit.ON_TIME }}</div><div class="hint">ช้า <span data-k="audit.LATE">{{ summary.audit.LATE }}</span> · ยังไม่ส่ง <span data-k="audit.MISSING">{{ summary.audit.MISSING }}</span></div></div>
+    <div class="figure"><div class="label">รายงานประจำวันตรงเวลา</div><div class="value" data-k="report.ON_TIME">{{ summary.report.ON_TIME }}</div><div class="hint">ช้า <span data-k="report.LATE">{{ summary.report.LATE }}</span> · ยังไม่ส่ง <span data-k="report.MISSING">{{ summary.report.MISSING }}</span></div></div>
+    <div class="figure"><div class="label">ยังไม่ถึงกำหนด</div><div class="value"><span data-k="pending">{{ summary.audit.PENDING + summary.report.PENDING }}</span></div><div class="hint">รายงานที่ยังส่งได้</div></div>
+  </div>
+
+  <section class="panel">
+    <div class="table-wrap">
+    <table class="table responsive">
+      <thead><tr><th>สาขา</th><th>ตรวจเช้า</th><th>รายงานประจำวัน</th></tr></thead>
+      <tbody data-rows>
+      {% for row in rows %}
+        <tr>
+          <td class="primary"><span class="cell-title">{{ row.branch.name }}</span>{% if row.branch.code %} <span class="code-chip">{{ row.branch.code }}</span>{% endif %}</td>
+          {% for rec, ep, arg in [(row.audit, 'audits.detail', 'audit_id'), (row.report, 'reports.detail', 'report_id')] %}
+          <td>
+            {{ ui.tag(rec.status) }}
+            {% if rec.id %}<a class="small" href="{{ url_for(ep, **{arg: rec.id}) }}">{{ rec.time }} น. โดย {{ rec.submitted_by }}</a>{% if rec.is_verified %} <span class="chip"><i data-lucide="badge-check"></i>รับรองแล้ว</span>{% endif %}{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+      {% else %}
+        <tr><td colspan="3">{{ ui.empty('map-pin', 'ยังไม่มีสาขาที่เปิดใช้งาน', 'เพิ่มสาขาเพื่อเริ่มติดตามการส่งรายงาน') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const el = document.getElementById('monitor');
+  if (el.dataset.live !== 'true') return;
+  setInterval(async () => {
+    try {
+      const res = await (await fetch(el.dataset.url, { headers: { Accept: 'application/json' } })).json();
+      if (!res.success) return;
+      const s = res.summary;
+      const val = { rate: Math.round(s.rate), complete: s.complete, pending: s.audit.PENDING + s.report.PENDING };
+      ['ON_TIME', 'LATE', 'MISSING'].forEach((k) => { val['audit.' + k] = s.audit[k]; val['report.' + k] = s.report[k]; });
+      el.querySelectorAll('[data-k]').forEach((n) => { if (val[n.dataset.k] !== undefined) n.textContent = val[n.dataset.k]; });
+      const submitted = res.rows.filter((r) => r.audit.id).length + res.rows.filter((r) => r.report.id).length;
+      const changed = submitted !== Number(el.dataset.seen);
+      if (changed) location.reload();
+    } catch (e) { /* keep showing last data */ }
+  }, 60000);
+})();
+</script>
+{% endblock %}

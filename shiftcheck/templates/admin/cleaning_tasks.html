@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}งานทำความสะอาด{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>งานทำความสะอาด</h1><p>งานรายวันจะเป็นแถวในตารางรายเดือน ส่วนงานรายสัปดาห์จะหมุนเวียนสัปดาห์ละ 1 งานตามลำดับ งานที่ลบออกจะยังแสดงในตารางย้อนหลัง</p></div>
+  <div class="page-actions"><button class="btn btn-primary" type="button" data-save-tasks><i data-lucide="save"></i>บันทึกงาน</button></div>
+</div>
+
+<div class="grid grid-main" id="tasks-editor" data-url="{{ url_for('admin.cleaning_tasks') }}">
+  {% for freq, title, hint in [('DAILY', 'งานรายวัน', 'ใส่ช่วงเวลาเพื่อบอกว่าควรทำเมื่อไร และทำเครื่องหมาย “พัก” เพื่อไม่ให้ติ๊กได้'), ('WEEKLY', 'งานหมุนเวียนรายสัปดาห์', 'สัปดาห์ที่ 1 ทำงานแรก สัปดาห์ที่ 2 ทำงานที่สอง ต่อไปเรื่อย ๆ')] %}
+  <section class="panel" data-freq="{{ freq }}" {% if freq == 'WEEKLY' %}style="align-self:start"{% endif %}>
+    <div class="panel-head"><div><h2>{{ title }}</h2><p>{{ hint }}</p></div></div>
+    <div data-rows>
+      {% for t in tasks if t.frequency == freq %}
+      <div class="task-row" data-id="{{ t.id }}">
+        <span class="no muted num">{{ loop.index }}</span>
+        <input class="input input-sm" data-title value="{{ t.title }}" aria-label="งาน" maxlength="200">
+        {% if freq == 'DAILY' %}<input class="input input-sm slot-input" data-slot value="{{ t.time_slot or '' }}" placeholder="08:00–08:30" aria-label="ช่วงเวลา" maxlength="40">
+        <label class="check small freq"><input type="checkbox" data-break {% if t.is_break %}checked{% endif %}> พัก</label>{% else %}<span></span><span></span>{% endif %}
+        <div class="editor-tools"><button class="icon-btn" type="button" data-up aria-label="เลื่อนขึ้น"><i data-lucide="arrow-up"></i></button><button class="icon-btn" type="button" data-remove aria-label="ลบ"><i data-lucide="trash-2"></i></button></div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="editor-add"><button class="btn btn-sm" type="button" data-add><i data-lucide="plus"></i>เพิ่มงาน</button></div>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const { api, toast, icons } = window.Shiftcheck;
+  const root = document.getElementById('tasks-editor');
+  const renumber = () => root.querySelectorAll('[data-rows]').forEach((rows) => rows.querySelectorAll('.task-row').forEach((r, i) => (r.querySelector('.no').textContent = i + 1)));
+  root.addEventListener('click', (e) => {
+    const panel = e.target.closest('[data-freq]'); if (!panel) return;
+    const rows = panel.querySelector('[data-rows]');
+    if (e.target.closest('[data-add]')) {
+      const daily = panel.dataset.freq === 'DAILY';
+      const row = document.createElement('div');
+      row.className = 'task-row';
+      row.innerHTML = `<span class="no muted num"></span><input class="input input-sm" data-title aria-label="งาน" maxlength="200" placeholder="อธิบายงาน">
+        ${daily ? '<input class="input input-sm slot-input" data-slot placeholder="08:00–08:30" aria-label="ช่วงเวลา" maxlength="40"><label class="check small freq"><input type="checkbox" data-break> พัก</label>' : '<span></span><span></span>'}
+        <div class="editor-tools"><button class="icon-btn" type="button" data-up aria-label="เลื่อนขึ้น"><i data-lucide="arrow-up"></i></button><button class="icon-btn" type="button" data-remove aria-label="ลบ"><i data-lucide="trash-2"></i></button></div>`;
+      rows.appendChild(row); icons(); renumber(); row.querySelector('[data-title]').focus();
+    }
+    const row = e.target.closest('.task-row');
+    if (row && e.target.closest('[data-remove]')) { row.remove(); renumber(); }
+    if (row && e.target.closest('[data-up]') && row.previousElementSibling) { row.parentNode.insertBefore(row, row.previousElementSibling); renumber(); }
+  });
+  document.querySelector('[data-save-tasks]').addEventListener('click', async (e) => {
+    const tasks = [];
+    root.querySelectorAll('[data-freq]').forEach((panel) => panel.querySelectorAll('.task-row').forEach((r) => tasks.push({
+      id: r.dataset.id ? Number(r.dataset.id) : null, title: r.querySelector('[data-title]').value,
+      time_slot: r.querySelector('[data-slot]')?.value || '', is_break: !!r.querySelector('[data-break]')?.checked, frequency: panel.dataset.freq,
+    })));
+    e.currentTarget.classList.add('is-busy');
+    try { await api(root.dataset.url, { tasks }); location.reload(); }
+    catch (err) { toast(err.message, 'error'); e.currentTarget.classList.remove('is-busy'); }
+  });
+})();
+</script>
+{% endblock %}

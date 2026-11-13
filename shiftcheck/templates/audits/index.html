@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}ตรวจสาขา{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>ตรวจสาขา</h1><p>{{ 'ผลการตรวจของทุกสาขา' if current_user.is_admin else 'ผลการตรวจของสาขาคุณ' }}</p></div>
+  <div class="page-actions"><a class="btn btn-primary" href="{{ url_for('audits.new') }}"><i data-lucide="clipboard-check"></i>เริ่มตรวจสาขา</a></div>
+</div>
+
+<section class="panel">
+  {% set active_filters = [filters.branch, filters.date_from, filters.date_to, filters.verified]|select|list|length %}
+  {% call ui.filter_bar("audits.index", filters.q, "ค้นหาสาขา เช็กลิสต์ หรือชื่อผู้ส่ง", active_filters) %}
+    {% if current_user.is_admin %}<div class="field"><label for="branch">สาขา</label>{{ ui.branch_select(branches, filters.branch, all_label='ทุกสาขา') }}</div>{% endif %}
+    <div class="field"><label for="from">ตั้งแต่วันที่</label><input class="input" type="date" id="from" name="from" value="{{ filters.date_from.isoformat() if filters.date_from else '' }}"></div>
+    <div class="field"><label for="to">ถึงวันที่</label><input class="input" type="date" id="to" name="to" value="{{ filters.date_to.isoformat() if filters.date_to else '' }}"></div>
+    <div class="field"><label for="verified">การรับรอง</label>
+      <select class="select" id="verified" name="verified">
+        <option value="">ทั้งหมด</option><option value="yes" {% if filters.verified == 'yes' %}selected{% endif %}>รับรองแล้ว</option><option value="no" {% if filters.verified == 'no' %}selected{% endif %}>รอตรวจรับรอง</option>
+      </select></div>
+  {% endcall %}
+
+  {% if audits %}
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>สาขา</th><th>วันที่</th><th>ผ่านเกณฑ์</th><th>การรับรอง</th><th class="actions"><span class="sr-only">จัดการ</span></th></tr></thead>
+    <tbody>
+    {% for a in audits %}
+      <tr>
+        <td class="primary"><a class="cell-title" href="{{ url_for('audits.detail', audit_id=a.id) }}">{{ a.branch_name }}</a><span class="cell-sub">{{ a.template_name }} · {{ a.submitted_by }}</span></td>
+        <td data-label="วันที่" class="nowrap">{{ a.audit_date|date }}<span class="cell-sub">{{ a.created_at|time }}</span></td>
+        <td>{{ ui.meter(a.rate) }}{% if a.failed_items %}<span class="cell-sub" style="color:var(--bad)">ไม่ผ่าน {{ a.failed_items }} รายการ</span>{% endif %}</td>
+        <td>{{ ui.verified(a) }}</td>
+        <td class="actions"><a class="btn btn-sm btn-ghost" href="{{ url_for('audits.export_pdf', audit_id=a.id) }}" target="_blank" rel="noopener" aria-label="PDF รายงานตรวจ {{ a.id }}"><i data-lucide="file-down"></i>PDF</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ ui.pager(page, pages, total, 'audits.index') }}
+  {% else %}
+    {{ ui.empty('search-x', 'ไม่พบรายงานตรวจ', 'ลองเปลี่ยนคำค้นหรือล้างตัวกรอง' if request.args else 'ผลการตรวจจะแสดงที่นี่หลังส่งครั้งแรก', url_for('audits.new'), 'เริ่มตรวจสาขา') }}
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}{{ template.name or 'สร้างเช็กลิสต์' }}{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('admin.templates') }}"><i data-lucide="arrow-left"></i>เช็กลิสต์</a>
+<div class="page-head">
+  <div><h1>{{ 'แก้ไขเช็กลิสต์' if template.id else 'สร้างเช็กลิสต์ใหม่' }}</h1>
+    <p>หมวดใช้จัดกลุ่มรายการตรวจ แต่ละรายการกำหนดช่องข้อมูลที่ผู้ตรวจต้องกรอกเมื่อไม่ผ่านได้</p></div>
+  <div class="page-actions"><button class="btn btn-primary" type="button" data-save><i data-lucide="save"></i>บันทึกเช็กลิสต์</button></div>
+</div>
+
+<div class="form-layout" id="editor" data-id="{{ template.id or '' }}" data-save-url="{{ url_for('admin.save_template') }}">
+  <div class="stack-lg">
+    <div data-sections></div>
+    <button class="btn" type="button" data-add-section><i data-lucide="plus"></i>เพิ่มหมวด</button>
+  </div>
+  <aside class="form-aside stack">
+    <section class="panel">
+      <div class="panel-body stack">
+        <div class="field"><label for="t-name">ชื่อเช็กลิสต์</label><input class="input" id="t-name" maxlength="120" placeholder="เช่น เช็กลิสต์ก่อนเปิดร้าน"></div>
+        <div class="field"><label for="t-desc">คำอธิบาย</label><textarea class="textarea" id="t-desc" maxlength="500" placeholder="ใช้เช็กลิสต์นี้เมื่อไร"></textarea></div>
+        <div class="grid grid-2" style="gap:10px">
+          <div class="field"><label for="t-min">รูปขั้นต่ำ</label><input class="input" id="t-min" type="number" min="0" max="7"></div>
+          <div class="field"><label for="t-max">รูปสูงสุด</label><input class="input" id="t-max" type="number" min="0" max="7"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="t-active"> เปิดใช้งาน (แสดงในฟอร์มตรวจสาขา)</label>
+      </div>
+      <div class="panel-foot stack">
+        <div class="muted small" data-summary></div>
+        <button class="btn btn-primary btn-block" type="button" data-save><i data-lucide="save"></i>บันทึกเช็กลิสต์</button>
+      </div>
+    </section>
+  </aside>
+</div>
+<script type="application/json" id="template-data">{{ template|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/template-editor.js') }}"></script>
+{% endblock %}

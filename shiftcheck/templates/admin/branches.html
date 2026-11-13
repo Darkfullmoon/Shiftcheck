@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}สาขา{% endblock %}
+{% macro branch_fields(b=None) %}
+  <div class="form-grid">
+    <div class="field"><label>ชื่อสาขา</label><input class="input" name="name" value="{{ b.name if b else '' }}" required maxlength="100" placeholder="เช่น Riverside Studio"></div>
+    <div class="field"><label>รหัสย่อ <span class="muted">(ไม่บังคับ)</span></label><input class="input" name="code" value="{{ b.code or '' if b else '' }}" maxlength="20" placeholder="เช่น RVS" style="text-transform:uppercase"></div>
+    <div class="field full"><label>เช็กลิสต์</label>
+      <select class="select" name="template_id"><option value="">ใช้เช็กลิสต์ค่าเริ่มต้น</option>
+        {% for t in templates %}<option value="{{ t.id }}" {% if b and b.template_id == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+      </select></div>
+    <label class="check full"><input type="checkbox" name="cleaning_schedule_enabled" value="1" {% if b and b.cleaning_schedule_enabled %}checked{% endif %}> ใช้ตารางทำความสะอาดรายเดือน</label>
+  </div>
+{% endmacro %}
+{% block content %}
+<div class="page-head">
+  <div><h1>สาขา</h1><p>สาขาที่ต้องส่งรายงานตรวจและรายงานประจำวัน สาขาที่ปิดใช้งานจะยังเก็บประวัติไว้ แต่ไม่แสดงในฟอร์ม</p></div>
+  <div class="page-actions"><button class="btn btn-primary" type="button" data-open-dialog="dlg-new"><i data-lucide="map-pin-plus"></i>เพิ่มสาขา</button></div>
+</div>
+<section class="panel">
+  {% if rows %}
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>สาขา</th><th>เช็กลิสต์</th><th>ทำความสะอาด</th><th>ผู้ใช้</th><th>ตรวจล่าสุด</th><th class="actions"><span class="sr-only">จัดการ</span></th></tr></thead>
+    <tbody>
+    {% for b in rows %}
+      <tr{% if not b.is_active %} style="opacity:.6"{% endif %}>
+        <td class="primary"><span class="cell-title">{{ b.name }}</span> {% if b.code %}<span class="code-chip">{{ b.code }}</span>{% endif %} {% if not b.is_active %}<span class="tag">ปิดใช้งาน</span>{% endif %}</td>
+        <td data-label="เช็กลิสต์">{{ b.template_name or 'ค่าเริ่มต้น' }}</td>
+        <td data-label="ทำความสะอาด">{% if b.cleaning_schedule_enabled %}<span class="tag success">เปิด</span>{% else %}<span class="muted">ปิด</span>{% endif %}</td>
+        <td data-label="ผู้ใช้" class="num">{{ b.user_count }}</td>
+        <td data-label="ตรวจล่าสุด">{{ b.last_audit|date if b.last_audit else 'ยังไม่เคย' }}</td>
+        <td class="actions">
+          <button class="btn btn-sm" type="button" data-open-dialog="dlg-{{ b.id }}">แก้ไข</button>
+          <form class="inline-form" method="post" action="{{ url_for('admin.archive_branch', branch_id=b.id) }}" {% if b.is_active %}data-confirm="สาขาจะไม่แสดงในฟอร์มและกระดานสถานะ แต่ประวัติยังอยู่ และเปิดใช้งานใหม่ได้ทุกเมื่อ" data-confirm-title="ปิดใช้งานสาขา {{ b.name }}?" data-confirm-label="ปิดใช้งาน"{% endif %}>
+            {{ ui.csrf() }}<input type="hidden" name="action" value="{{ 'archive' if b.is_active else 'restore' }}">
+            <button class="btn btn-sm btn-ghost" type="submit">{{ 'ปิดใช้งาน' if b.is_active else 'เปิดใช้งาน' }}</button>
+          </form>
+          <dialog id="dlg-{{ b.id }}" class="dialog">
+            <form method="post" action="{{ url_for('admin.update_branch', branch_id=b.id) }}">{{ ui.csrf() }}
+              <div class="modal-head"><h3>แก้ไขสาขา</h3><button class="icon-btn" type="button" data-close-dialog aria-label="ปิด"><i data-lucide="x"></i></button></div>
+              <div class="modal-body">{{ branch_fields(b) }}</div>
+              <div class="modal-foot"><button class="btn btn-ghost" type="button" data-close-dialog>ยกเลิก</button><button class="btn btn-primary" type="submit">บันทึก</button></div>
+            </form>
+          </dialog>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}{{ ui.empty('map-pin', 'ยังไม่มีสาขา', 'เพิ่มสาขาแรกเพื่อเริ่มส่งรายงานตรวจ') }}{% endif %}
+</section>
+<dialog id="dlg-new" class="dialog">
+  <form method="post" action="{{ url_for('admin.create_branch') }}">{{ ui.csrf() }}
+    <div class="modal-head"><h3>เพิ่มสาขา</h3><button class="icon-btn" type="button" data-close-dialog aria-label="ปิด"><i data-lucide="x"></i></button></div>
+    <div class="modal-body">{{ branch_fields() }}</div>
+    <div class="modal-foot"><button class="btn btn-ghost" type="button" data-close-dialog>ยกเลิก</button><button class="btn btn-primary" type="submit">เพิ่มสาขา</button></div>
+  </form>
+</dialog>
+{% endblock %}

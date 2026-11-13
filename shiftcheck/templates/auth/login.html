@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}เข้าสู่ระบบ{% endblock %}
+{% block body %}
+<div class="auth">
+  <section class="auth-art" aria-hidden="true">
+    <div class="row" style="gap:10px">
+      <img src="{{ url_for('static', filename='img/mark.svg') }}" alt="" width="34" height="34">
+      <span class="brand-name" style="color:#fff">Shiftcheck</span>
+    </div>
+    <div>
+      <h1>ทุกสาขาพร้อม ก่อนเปิดประตูต้อนรับลูกค้า</h1>
+      <div class="tags">
+        <span class="tag solid success">Riverside · ตรวจเช้าตรงเวลา</span>
+        <span class="tag warning">Harbor Point · ส่งรายงานช้า</span>
+        <span class="tag danger">Cedar Plaza · ยังไม่ตรวจเช้า</span>
+      </div>
+      <p>รวมการตรวจสาขาประจำวัน รายงานประจำวัน และตารางทำความสะอาดไว้ในที่เดียว พร้อมกระดานสถานะที่บอกได้ทันทีว่าสาขาไหนยังต้องติดตาม</p>
+    </div>
+    <p class="small" style="margin:0">ระบบเช็กลิสต์การปฏิบัติงาน</p>
+  </section>
+
+  <section class="auth-form">
+    <div class="auth-card stack-lg">
+      <div>
+        <h2>เข้าสู่ระบบ</h2>
+        <p class="muted">ใช้บัญชีที่ได้รับจากผู้ดูแลระบบ</p>
+      </div>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="notice {{ {'error':'danger','message':'info'}.get(category, category) }}">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+      <form method="post" class="stack" data-busy>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="username">ชื่อผู้ใช้</label>
+          <input class="input" id="username" name="username" value="{{ username or '' }}" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+        </div>
+        <div class="field">
+          <label for="password">รหัสผ่าน</label>
+          <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary btn-lg btn-block" type="submit">เข้าสู่ระบบ</button>
+      </form>
+      <p class="muted small">ลืมรหัสผ่าน? ติดต่อผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่าน</p>
+    </div>
+  </section>
+</div>
+{% endblock %}

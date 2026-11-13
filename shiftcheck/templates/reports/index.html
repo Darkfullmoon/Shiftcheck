@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}รายงานประจำวัน{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>รายงานประจำวัน</h1><p>{{ 'รายงานปิดวันของทุกสาขา' if current_user.is_admin else 'รายงานปิดวันของสาขาคุณ' }}</p></div>
+  <div class="page-actions"><a class="btn btn-primary" href="{{ url_for('reports.new') }}"><i data-lucide="notebook-pen"></i>เขียนรายงาน</a></div>
+</div>
+
+<section class="panel">
+  {% set active_filters = [filters.branch, filters.date_from, filters.date_to, filters.verified]|select|list|length %}
+  {% call ui.filter_bar("reports.index", filters.q, "ค้นหาสาขา ทีม หรือชื่อผู้ส่ง", active_filters) %}
+    {% if current_user.is_admin %}<div class="field"><label for="branch">สาขา</label>{{ ui.branch_select(branches, filters.branch, all_label='ทุกสาขา') }}</div>{% endif %}
+    <div class="field"><label for="from">ตั้งแต่วันที่</label><input class="input" type="date" id="from" name="from" value="{{ filters.date_from.isoformat() if filters.date_from else '' }}"></div>
+    <div class="field"><label for="to">ถึงวันที่</label><input class="input" type="date" id="to" name="to" value="{{ filters.date_to.isoformat() if filters.date_to else '' }}"></div>
+    <div class="field"><label for="verified">การรับรอง</label>
+      <select class="select" id="verified" name="verified">
+        <option value="">ทั้งหมด</option><option value="yes" {% if filters.verified == 'yes' %}selected{% endif %}>รับรองแล้ว</option><option value="no" {% if filters.verified == 'no' %}selected{% endif %}>รอตรวจรับรอง</option>
+      </select></div>
+  {% endcall %}
+  {% if reports %}
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>สาขา</th><th>วันที่</th><th>ลูกค้า</th><th>การรับรอง</th><th class="actions"><span class="sr-only">จัดการ</span></th></tr></thead>
+    <tbody>
+    {% for r in reports %}
+    <tr>
+      <td class="primary"><a class="cell-title" href="{{ url_for('reports.detail', report_id=r.id) }}">{{ r.branch_name }}</a><span class="cell-sub">{% if r.team %}{{ r.team }} · {% endif %}{{ r.submitted_by }}</span></td>
+      <td data-label="วันที่" class="nowrap">{{ r.report_date|date }}<span class="cell-sub">{{ r.created_at|time }}</span></td>
+      <td data-label="ลูกค้า" class="num">{{ r.visitors }}</td>
+      <td>{{ ui.verified(r) }}</td>
+      <td class="actions"><a class="btn btn-sm btn-ghost" href="{{ url_for('reports.export_pdf', report_id=r.id) }}" target="_blank" rel="noopener"><i data-lucide="file-down"></i>PDF</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ ui.pager(page, pages, total, 'reports.index') }}
+  {% else %}
+    {{ ui.empty('search-x', 'ไม่พบรายงานประจำวัน', 'ลองเปลี่ยนคำค้นหรือล้างตัวกรอง' if request.args else 'รายงานจะแสดงที่นี่หลังส่งครั้งแรก', url_for('reports.new'), 'เขียนรายงาน') }}
+  {% endif %}
+</section>
+{% endblock %}

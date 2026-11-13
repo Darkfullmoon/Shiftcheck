@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% set ep = request.endpoint or '' %}
+{# One nav entry per area: each list page carries its own "start new" button, so there is no separate
+   link for creating and for browsing. `match` is a prefix (or tuple of prefixes) that keeps the entry lit. #}
+{% macro nav_link(endpoint, icon, label, match=None, count=None) -%}
+  {% set active = ep == endpoint or (match and ep.startswith(match)) %}
+  <a class="nav-link{% if active %} active{% endif %}" href="{{ url_for(endpoint) }}"{% if active %} aria-current="page"{% endif %}>
+    <i data-lucide="{{ icon }}"></i><span>{{ label }}</span>
+    {% if count %}<span class="nav-count">{{ count }}</span>{% endif %}
+  </a>
+{%- endmacro %}
+{% set setup_pages = ('admin.templates', 'admin.new_template', 'admin.edit_template', 'admin.cleaning_tasks', 'admin.branches', 'admin.users', 'admin.settings') %}
+
+{% block body %}
+<div class="shell">
+  <nav class="nav" id="nav" aria-label="เมนูหลัก">
+    <a class="brand" href="{{ url_for('dashboard.home') }}">
+      <img class="brand-mark" src="{{ url_for('static', filename='img/mark.svg') }}" alt="">
+      <span class="brand-name">Shiftcheck</span>
+    </a>
+
+    {{ nav_link('dashboard.home', 'layout-dashboard', 'ภาพรวม') }}
+    {{ nav_link('audits.index', 'clipboard-check', 'ตรวจสาขา', match='audits.') }}
+    {{ nav_link('reports.index', 'notebook-pen', 'รายงานประจำวัน', match='reports.') }}
+    {% if cleaning_allowed %}{{ nav_link('cleaning.sheet', 'spray-can', 'ทำความสะอาด', match='cleaning.') }}{% endif %}
+    {{ nav_link('requests.index', 'package', 'เบิกของ', match=('requests.index', 'requests.new')) }}
+
+    {% if current_user.is_admin %}
+    <div class="nav-group">
+      <div class="nav-group-title">ติดตาม</div>
+      {{ nav_link('admin.monitor', 'radar', 'การส่งรายงาน', match='admin.monitor') }}
+      {{ nav_link('requests.queue', 'inbox', 'อนุมัติคำขอ', count=pending_requests) }}
+      {{ nav_link('admin.visitor_analytics', 'chart-column', 'สถิติลูกค้า') }}
+    </div>
+
+    <details class="nav-group nav-more"{% if ep.startswith(setup_pages) %} open{% endif %}>
+      <summary class="nav-group-title">ตั้งค่า<i data-lucide="chevron-down"></i></summary>
+      {{ nav_link('admin.templates', 'list-todo', 'เช็กลิสต์', match=('admin.templates', 'admin.new_template', 'admin.edit_template')) }}
+      {{ nav_link('admin.cleaning_tasks', 'brush', 'งานทำความสะอาด') }}
+      {{ nav_link('admin.branches', 'map-pin', 'สาขา') }}
+      {{ nav_link('admin.users', 'users', 'ผู้ใช้งาน') }}
+      {{ nav_link('admin.settings', 'database', 'ข้อมูลระบบ') }}
+    </details>
+    {% endif %}
+    <div class="nav-foot">Shiftcheck v{{ app_version }}</div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-toggle" type="button" data-nav-toggle aria-label="เปิดเมนู" aria-controls="nav"><i data-lucide="menu"></i></button>
+      <span class="crumb">{% block crumb %}{{ user_branch.name if user_branch else ('ทุกสาขา' if current_user.is_admin else 'ยังไม่ได้กำหนดสาขา') }}{% endblock %}</span>
+      <span class="spacer"></span>
+      <div class="menu">
+        <button class="user-chip" type="button" data-dropdown aria-haspopup="menu" aria-expanded="false">
+          <span class="avatar" aria-hidden="true">{{ current_user.full_name|initials }}</span>
+          <span class="who">{{ current_user.full_name }}<small>{{ 'ผู้ดูแลระบบ' if current_user.is_admin else 'พนักงาน' }}</small></span>
+          <i data-lucide="chevron-down" style="width:16px;height:16px"></i>
+        </button>
+        <div class="dropdown" role="menu" hidden>
+          <button type="button" role="menuitem" data-theme-toggle><i data-lucide="sun-moon"></i>สลับโหมดสว่าง/มืด</button>
+          <a href="{{ url_for('auth.change_password') }}" role="menuitem"><i data-lucide="key-round"></i>เปลี่ยนรหัสผ่าน</a>
+          <form method="post" action="{{ url_for('auth.logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" role="menuitem"><i data-lucide="log-out"></i>ออกจากระบบ</button>
+          </form>
+        </div>
+      </div>
+    </header>
+
+    <main class="content" id="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-fallback stack" data-flashes>
+          {% for category, message in messages %}
+            <div class="notice {{ {'error':'danger','message':'info'}.get(category, category) }}" data-category="{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}

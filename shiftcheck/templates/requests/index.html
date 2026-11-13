@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}คำขอเบิกของ{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>เบิกของ</h1><p>{{ 'คำขอเบิกวัสดุและอุปกรณ์ของทุกสาขา' if current_user.is_admin else 'คำขอเบิกวัสดุและอุปกรณ์ของคุณ' }}</p></div>
+  <div class="page-actions">
+    {% if current_user.is_admin and counts.PENDING %}<a class="btn" href="{{ url_for('requests.queue') }}"><i data-lucide="inbox"></i>พิจารณา {{ counts.PENDING }} คำขอที่รออยู่</a>{% endif %}
+    <a class="btn btn-primary" href="{{ url_for('requests.new') }}"><i data-lucide="package-plus"></i>ขอเบิกของ</a>
+  </div>
+</div>
+<section class="panel">
+  <form class="panel-head filters" method="get">
+    <div class="row" role="group" aria-label="กรองตามสถานะ">
+      {% for key, label in [('ALL', 'ทั้งหมด'), ('PENDING', 'รออนุมัติ'), ('APPROVED', 'อนุมัติแล้ว'), ('REJECTED', 'ไม่อนุมัติ')] %}
+        <a class="btn btn-sm {{ 'btn-primary' if status == key else 'btn-ghost' }}" href="{{ url_for('requests.index', status=key, q=q or None) }}">{{ label }}{% if key != 'ALL' %} <span class="muted">{{ counts[key] }}</span>{% endif %}</a>
+      {% endfor %}
+    </div>
+    <div class="row"><input type="hidden" name="status" value="{{ status }}"><input class="input" type="search" name="q" value="{{ q }}" placeholder="ค้นหารหัส รายการ หรือชื่อผู้ขอ" aria-label="ค้นหา"><button class="btn" type="submit">ค้นหา</button></div>
+  </form>
+  {% if items %}
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>รายการ</th><th>หมวดหมู่</th><th>จำนวน</th><th>วันที่ขอ</th><th>สถานะ</th><th>หมายเหตุผู้อนุมัติ</th></tr></thead>
+    <tbody>
+    {% for r in items %}
+      <tr>
+        <td class="primary"><span class="cell-title">{{ r.item_name }}</span><span class="cell-sub"><span class="code-chip">{{ r.item_code }}</span>{% if r.branch_name %} {{ r.branch_name }}{% endif %}</span></td>
+        <td data-label="หมวดหมู่">{{ r.category }}</td>
+        <td data-label="จำนวน" class="num">{{ r.quantity }}</td>
+        <td data-label="วันที่ขอ">{{ r.created_at|date }}<span class="cell-sub">{{ r.submitted_by }}</span></td>
+        <td>{{ ui.tag(r.status, 'รออนุมัติ' if r.status == 'PENDING' else None) }}</td>
+        <td data-label="หมายเหตุ" class="small">{% if r.reviewed_by %}{{ r.reviewer_note or 'ไม่มีหมายเหตุ' }}<span class="cell-sub">{{ r.reviewed_by }}, {{ r.reviewed_at|date }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+    {{ ui.empty('package-open', 'ไม่มีคำขอ', 'ขอเบิกวัสดุหรืออุปกรณ์ แล้วผู้ดูแลระบบจะพิจารณาให้', url_for('requests.new'), 'ขอเบิกของ') }}
+  {% endif %}
+</section>
+{% endblock %}

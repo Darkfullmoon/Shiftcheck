@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}ขอเบิกของ{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('requests.index') }}"><i data-lucide="arrow-left"></i>เบิกของ</a>
+<div class="page-head"><div><h1>ขอเบิกของ</h1><p>ผู้ดูแลระบบจะพิจารณาคำขอ ดูผลได้ที่หน้า “เบิกของ”</p></div></div>
+<form class="panel" method="post" style="max-width:720px" data-busy>
+  {{ ui.csrf() }}
+  <div class="panel-body form-grid">
+    <div class="field"><label for="item_code">รหัสสินค้า</label><input class="input" id="item_code" name="item_code" value="{{ form.item_code }}" maxlength="50" placeholder="เช่น CAT-2041" required style="text-transform:uppercase"></div>
+    <div class="field"><label for="quantity">จำนวน</label><input class="input" id="quantity" name="quantity" type="number" min="1" max="10000" value="{{ form.quantity or 1 }}" required></div>
+    <div class="field full"><label for="item_name">ชื่อรายการ</label><input class="input" id="item_name" name="item_name" value="{{ form.item_name }}" maxlength="255" placeholder="เช่น แคตตาล็อกสินค้า ฉบับใหม่" required></div>
+    <div class="field"><label for="category">หมวดหมู่</label>
+      <select class="select" id="category" name="category" required>
+        <option value="">เลือก…</option>
+        {% for c in categories %}<option {% if form.category == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label for="branch">สำหรับสาขา</label>{{ ui.branch_select(branches, (form.branch|int if form.branch else (user_branch.id if user_branch else None))) }}</div>
+    <div class="field full"><label for="reason">เหตุผลที่ขอ <span class="muted">(ไม่บังคับ)</span></label><textarea class="textarea" id="reason" name="reason" maxlength="500" placeholder="เช่น ของใกล้หมดหลังงานอีเวนต์สุดสัปดาห์">{{ form.reason }}</textarea></div>
+  </div>
+  <div class="panel-foot row between"><span class="muted small">ส่งแล้วจะแก้ไขคำขอไม่ได้</span><button class="btn btn-primary" type="submit"><i data-lucide="send"></i>ส่งคำขอ</button></div>
+</form>
+{% endblock %}

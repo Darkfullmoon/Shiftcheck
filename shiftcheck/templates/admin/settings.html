@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}ข้อมูลระบบ{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>ข้อมูลระบบ</h1><p>ค่าที่ระบบใช้อยู่และการจัดการข้อมูลเก่า ค่าเหล่านี้กำหนดตอนติดตั้ง (ไฟล์ <code>.env</code>) หากต้องการเปลี่ยนให้แจ้งผู้ติดตั้งระบบ</p></div></div>
+
+<div class="grid grid-2">
+  <section class="panel">
+    <div class="panel-head"><h2>ค่าที่ใช้อยู่</h2></div>
+    <div class="panel-body">
+      <dl class="kv">
+        <dt>กำหนดส่งรายงานตรวจ</dt><dd>{{ cfg.AUDIT_DEADLINE.strftime('%H:%M') }} น.</dd>
+        <dt>กำหนดส่งรายงานประจำวัน</dt><dd>{{ cfg.REPORT_DEADLINE.strftime('%H:%M') }} น.</dd>
+        <dt>ต้องเปลี่ยนรหัสผ่านทุก</dt><dd>{{ (cfg.PASSWORD_MAX_AGE_DAYS ~ ' วัน') if cfg.PASSWORD_MAX_AGE_DAYS else 'ปิด' }}</dd>
+        <dt>ออกจากระบบอัตโนมัติ</dt><dd>หลัง {{ cfg.SESSION_HOURS }} ชั่วโมง</dd>
+        <dt>การถ่ายรูป</dt><dd>{{ 'ถ่ายจากกล้องเท่านั้น' if cfg.REQUIRE_LIVE_CAMERA else 'ถ่ายจากกล้องหรืออัปโหลด' }}</dd>
+        <dt>ผู้ช่วย AI</dt><dd>{% if ai_enabled %}<span class="tag success">เปิด</span> {{ cfg.GEMINI_MODELS|join(', ') }}{% else %}<span class="tag">ปิด</span> {% endif %}</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>จำนวนข้อมูล</h2></div>
+    <div class="panel-body">
+      <dl class="kv">
+        <dt>รายงานตรวจสาขา</dt><dd class="num">{{ counts.site_audits }}</dd>
+        <dt>รายงานประจำวัน</dt><dd class="num">{{ counts.shift_reports }}</dd>
+        <dt>ตารางทำความสะอาด</dt><dd class="num">{{ counts.cleaning_schedules }}</dd>
+        <dt>คำขอเบิกของ</dt><dd class="num">{{ counts.item_requests }}</dd>
+        <dt>ผู้ใช้งาน</dt><dd class="num">{{ counts.users }}</dd>
+        <dt>สาขา</dt><dd class="num">{{ counts.branches }}</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div><h2>การลบข้อมูลเก่า</h2><p>{% if retention_months %}ลบข้อมูลที่เก่ากว่า {{ retention_months }} เดือน (ก่อนวันที่ {{ cutoff|date }}) พร้อมรูปถ่าย{% else %}ปิดอยู่{% endif %}</p></div></div>
+    <div class="panel-body">
+      <form method="post" action="{{ url_for('admin.run_retention') }}" data-confirm="รายงานตรวจ รายงานประจำวัน และตารางทำความสะอาดที่เก่ากว่ากำหนดจะถูกลบถาวร" data-confirm-title="ลบข้อมูลเก่า?" data-confirm-label="ลบข้อมูลเก่า" data-danger>
+        {{ ui.csrf() }}<button class="btn btn-danger" type="submit" {% if not retention_months %}disabled{% endif %}><i data-lucide="archive-x"></i>ลบข้อมูลเก่าตอนนี้</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="panel" style="border-color:var(--bad)">
+    <div class="panel-head"><div><h2>ลบรายงานทั้งหมด</h2><p>ลบรายงานตรวจ รายงานประจำวัน ตารางทำความสะอาด และคำขอทั้งหมดพร้อมไฟล์ ผู้ใช้ สาขา และเทมเพลตยังคงอยู่</p></div></div>
+    <form class="panel-body row" method="post" action="{{ url_for('admin.clear_data') }}">
+      {{ ui.csrf() }}
+      <input class="input" name="confirm" placeholder="พิมพ์ DELETE เพื่อยืนยัน" aria-label="พิมพ์ DELETE เพื่อยืนยัน" style="flex:1 1 200px" autocomplete="off">
+      <button class="btn btn-danger" type="submit"><i data-lucide="trash-2"></i>ลบทั้งหมด</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

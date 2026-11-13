@@ -1,0 +1,201 @@
+{% macro tag(status, text=None, solid=False) -%}
+  <span class="tag {{ status|status_tone }}{% if solid %} solid{% endif %}">{{ text or status|status_label }}</span>
+{%- endmacro %}
+
+{% macro meter(rate) -%}
+  {% set cls = '' if rate >= 95 else ('watch' if rate >= 85 else 'low') %}
+  <div class="meter {{ cls }}" title="ผ่านเกณฑ์ {{ rate }}%">
+    <div class="meter-track"><div class="meter-fill" style="width: {{ rate }}%"></div></div>
+    <span class="meter-value">{{ rate|round(0)|int }}%</span>
+  </div>
+{%- endmacro %}
+
+{% macro verified(record) -%}
+  {% if record.is_verified %}<span class="tag success">รับรองแล้ว</span>{% else %}<span class="tag">รอตรวจรับรอง</span>{% endif %}
+{%- endmacro %}
+
+{% macro empty(icon, title, text, action_url=None, action_label=None) -%}
+  <div class="empty">
+    <i data-lucide="{{ icon }}"></i>
+    <h3>{{ title }}</h3>
+    <p>{{ text }}</p>
+    {% if action_url %}<a class="btn btn-primary" href="{{ action_url }}">{{ action_label }}</a>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro pager(page, pages, total, endpoint) -%}
+  {% if pages > 1 %}
+  {% set args = request.args.to_dict() %}
+  <div class="pager">
+    <span>ทั้งหมด {{ total }} รายการ · หน้า {{ page }} จาก {{ pages }}</span>
+    {% if page > 1 %}{% set _ = args.update(page=page - 1) %}<a class="btn btn-sm" href="{{ url_for(endpoint, **args) }}">ก่อนหน้า</a>{% endif %}
+    {% if page < pages %}{% set _ = args.update(page=page + 1) %}<a class="btn btn-sm" href="{{ url_for(endpoint, **args) }}">ถัดไป</a>{% endif %}
+  </div>
+  {% endif %}
+{%- endmacro %}
+
+{# "More" menu for actions that are rarely needed or destructive. Use with {% call ui.more_menu() %}…{% endcall %}. #}
+{% macro more_menu(label='การทำงานเพิ่มเติม', small=False) -%}
+  <div class="menu">
+    <button class="btn btn-icon{% if small %} btn-sm btn-ghost{% endif %}" type="button" data-dropdown aria-haspopup="menu" aria-expanded="false" aria-label="{{ label }}" title="{{ label }}"><i data-lucide="ellipsis"></i></button>
+    <div class="dropdown" role="menu" hidden>{{ caller() }}</div>
+  </div>
+{%- endmacro %}
+
+{# Search box with the less-used filters folded away. They open by themselves when one is in use. #}
+{% macro filter_bar(endpoint, q, placeholder, active=0) -%}
+  <form class="panel-head filters" method="get">
+    <input class="input grow" type="search" name="q" value="{{ q or '' }}" placeholder="{{ placeholder }}" aria-label="ค้นหา">
+    <button class="btn" type="submit"><i data-lucide="search"></i>ค้นหา</button>
+    {% if request.args %}<a class="btn btn-ghost" href="{{ url_for(endpoint) }}">ล้าง</a>{% endif %}
+    <details class="more-filters"{% if active %} open{% endif %}>
+      <summary><i data-lucide="sliders-horizontal"></i>ตัวกรองเพิ่มเติม{% if active %} ({{ active }}){% endif %}</summary>
+      <div class="more-fields">{{ caller() }}<button class="btn" type="submit">ใช้ตัวกรอง</button></div>
+    </details>
+  </form>
+{%- endmacro %}
+
+{% macro csrf() -%}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{%- endmacro %}
+
+{% macro branch_select(branches, selected_id, name='branch', all_label=None, auto=False) -%}
+  <select class="select" name="{{ name }}" id="{{ name }}"{% if auto %} data-autosubmit{% endif %}>
+    {% if all_label %}<option value="">{{ all_label }}</option>{% endif %}
+    {% for b in branches %}
+      <option value="{{ b.id }}" {% if b.id == selected_id %}selected{% endif %}>{{ b.name }}{% if b.code %} ({{ b.code }}){% endif %}</option>
+    {% endfor %}
+  </select>
+{%- endmacro %}
+
+{% macro staffing_inputs(fields, values=None) -%}
+  <div class="table-wrap">
+  <table class="table compact staff-table">
+    <thead><tr><th>ประเภท</th><th>จำนวน</th><th>รายชื่อ</th></tr></thead>
+    <tbody>
+    {% for key, label in fields %}
+      {% set v = (values or {}).get(key) or {} %}
+      <tr>
+        <td><label for="staff_{{ key }}_qty">{{ label }}</label></td>
+        <td><input class="input qty" type="number" min="0" max="999" inputmode="numeric" id="staff_{{ key }}_qty" name="staff_{{ key }}_qty" value="{{ v.qty or '' }}" placeholder="0"></td>
+        <td><input class="input" name="staff_{{ key }}_names" value="{{ v.names or '' }}" placeholder="ชื่อหรือชื่อย่อ คั่นด้วยจุลภาค" aria-label="รายชื่อ {{ label }}"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+{%- endmacro %}
+
+{% macro staffing_table(fields, values) -%}
+  <table class="table compact">
+    <thead><tr><th>ประเภท</th><th>จำนวน</th><th>รายชื่อ</th></tr></thead>
+    <tbody>
+    {% for key, label in fields %}
+      {% set v = (values or {}).get(key) or {} %}
+      <tr><td>{{ label }}</td><td class="num">{{ v.qty or 0 }}</td><td>{{ v.names or '—' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{%- endmacro %}
+
+{% macro notes_editor(prefix, title, hint, rows=None) -%}
+  <div class="notes-rows" data-notes="{{ prefix }}">
+    <div class="rows">
+      {% for row in (rows or [{'who': '', 'note': ''}]) %}
+      <div class="note-row">
+        <input class="input" name="{{ prefix }}_who" value="{{ row.who }}" placeholder="ใคร" aria-label="ผู้รับผิดชอบ" maxlength="40">
+        <textarea class="textarea" name="{{ prefix }}_note" rows="1" placeholder="{{ hint }}" aria-label="{{ title }}" style="min-height:40px">{{ row.note }}</textarea>
+        <button class="icon-btn" type="button" data-remove-row aria-label="ลบแถว"><i data-lucide="x"></i></button>
+      </div>
+      {% endfor %}
+    </div>
+    <button class="btn btn-sm btn-ghost" type="button" data-add-row><i data-lucide="plus"></i>เพิ่มแถว</button>
+  </div>
+{%- endmacro %}
+
+{% macro notes_list(rows, empty_text='ไม่มีบันทึก') -%}
+  {% if rows %}
+  <ul class="list-plain">
+    {% for row in rows %}
+    <li><span class="avatar" aria-hidden="true">{{ (row.who or '—')|initials }}</span><div class="what">{% if row.who %}<strong>{{ row.who }}</strong>{% endif %}<div>{{ row.note }}</div></div></li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="muted" style="padding: 0 18px 14px">{{ empty_text }}</p>{% endif %}
+{%- endmacro %}
+
+{% macro signature_inputs(roles) -%}
+  <div class="sign-grid">
+  {% for key, label in roles %}
+    <div class="sign-box">
+      <span class="label">{{ label }}</span>
+      <input class="input" name="sign_{{ key }}_name" placeholder="ชื่อ-นามสกุล" aria-label="ชื่อ{{ label }}">
+      <input type="hidden" name="sign_{{ key }}_sig" data-signature-input>
+      <button class="sign-preview" type="button" data-signature-open data-title="ลายเซ็น{{ label }}">แตะเพื่อเซ็นชื่อ</button>
+    </div>
+  {% endfor %}
+  </div>
+{%- endmacro %}
+
+{% macro signatures_view(signoffs) -%}
+  <div class="sign-grid">
+  {% for s in signoffs or [] %}
+    <div class="signed-figure">
+      {% if s.signature %}<img src="{{ s.signature|media }}" alt="ลายเซ็นของ {{ s.name or s.label }}">{% else %}<div class="muted small" style="height:70px;display:grid;place-items:center">ยังไม่ได้ลงชื่อ</div>{% endif %}
+      <div class="name">{{ s.name or '—' }}</div>
+      <div class="role">{{ s.label }}</div>
+    </div>
+  {% else %}
+    <p class="muted">ไม่มีการลงชื่อ</p>
+  {% endfor %}
+  </div>
+{%- endmacro %}
+
+{% macro photo_gallery(photos) -%}
+  {% if photos %}
+  <div class="photo-grid" data-gallery>
+    {% for p in photos %}
+      <div class="photo-tile"><img src="{{ p|media }}" alt="รูปที่ {{ loop.index }}" loading="lazy" data-lightbox="{{ loop.index0 }}"><span class="badge">{{ loop.index }}{% if loop.first %} · รูปทีม{% endif %}</span></div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="muted">ไม่มีรูปแนบ</p>{% endif %}
+{%- endmacro %}
+
+{% macro photo_capture(max_photos, min_photos=0) -%}
+  <div class="stack" data-photo-capture data-max="{{ max_photos }}" data-min="{{ min_photos }}" data-live-only="{{ 'true' if require_live_camera else 'false' }}">
+    <div class="row">
+      <button class="btn btn-primary" type="button" data-camera-open><i data-lucide="camera"></i>ถ่ายรูป</button>
+      {% if not require_live_camera %}
+      <label class="btn"><i data-lucide="image-up"></i>อัปโหลด<input type="file" accept="image/*" multiple hidden data-photo-file></label>
+      {% endif %}
+      <span class="muted small" data-photo-count></span>
+    </div>
+    <p class="muted small" style="margin:0">รูปแรกควรเป็นรูปพนักงานทั้งทีมในกะ{% if ai_enabled %} (ใช้สำหรับให้ AI ตรวจจำนวนคนและการแต่งกาย){% endif %}</p>
+    <div class="photo-grid" data-photo-grid></div>
+    <input type="hidden" name="photos_json" data-photo-input value="[]">
+  </div>
+{%- endmacro %}
+
+{% macro verify_panel(record, endpoint_url) -%}
+  <section class="panel" data-verify="{{ endpoint_url }}">
+    <div class="panel-head"><div><h3>ผู้จัดการตรวจรับรอง</h3><p>ตรวจจำนวนพนักงานและการแต่งกายจากรูปทีม</p></div><span data-verify-tag>{{ verified(record) }}</span></div>
+    <div class="panel-body stack">
+      <label class="check"><input type="checkbox" data-verify-field="headcount_ok" {% if record.headcount_ok %}checked{% endif %}> จำนวนพนักงานตรงกับรายงาน</label>
+      <label class="check"><input type="checkbox" data-verify-field="dress_code_ok" {% if record.dress_code_ok %}checked{% endif %}> แต่งกายถูกต้องตามระเบียบ</label>
+      <p class="muted small" data-verify-meta>{% if record.is_verified %}รับรองโดย {{ record.verified_by }} เมื่อ {{ record.verified_at|datetime }}{% endif %}</p>
+      <div class="row">
+        <button class="btn btn-primary btn-sm" type="button" data-verify-action="1"><i data-lucide="badge-check"></i>บันทึกการรับรอง</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-verify-action="0" {% if not record.is_verified %}hidden{% endif %}>ยกเลิกการรับรอง</button>
+      </div>
+    </div>
+  </section>
+{%- endmacro %}
+
+{% macro photo_check_panel(record, endpoint_url) -%}
+  {% if ai_enabled %}
+  <section class="panel" data-photo-check="{{ endpoint_url }}" data-cached='{{ (record.photo_check or {})|tojson }}'>
+    <div class="panel-head"><div><h3>AI ตรวจรูปถ่าย</h3><p>นับจำนวนคนและตรวจการแต่งกายจากรูปทีม ใช้เป็นข้อมูลประกอบ ไม่ใช่คำตัดสิน</p></div></div>
+    <div class="panel-body" data-photo-check-body>
+      <p class="muted">ยังไม่ได้ตรวจ</p>
+    </div>
+    <div class="panel-foot"><button class="btn btn-sm" type="button" data-photo-check-run><i data-lucide="scan-face"></i>{{ 'ตรวจอีกครั้ง' if record.photo_check else 'เริ่มตรวจรูป' }}</button></div>
+  </section>
+  {% endif %}
+{%- endmacro %}

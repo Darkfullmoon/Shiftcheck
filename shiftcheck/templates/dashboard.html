@@ -1,0 +1,142 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}ภาพรวม{% endblock %}
+{% block content %}
+{% set row = status_rows[0] if status_rows else None %}
+<div class="page-head">
+  <div>
+    <h1>สวัสดีตอน{{ 'เช้า' if now.hour < 12 else ('บ่าย' if now.hour < 18 else 'เย็น') }} คุณ {{ current_user.full_name.split(' ')[0] }}</h1>
+    <p>วัน{{ now|date('%A ที่ %d %B %Y') }}</p>
+  </div>
+</div>
+
+<div class="stack-lg">
+  {% if current_user.is_admin %}
+  {% if open_requests %}
+  <div class="notice info"><i data-lucide="inbox"></i>
+    <div>มีคำขอเบิก {{ open_requests }} รายการรออนุมัติ <a href="{{ url_for('requests.queue') }}">พิจารณาคำขอ</a></div></div>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-head">
+      <div><h2>สถานะวันนี้</h2><p>ส่งครบแล้ว {{ status_summary.complete }} จาก {{ status_summary.branches }} สาขา · ตรวจเช้าภายใน {{ status_summary.audit_deadline }} น. รายงานประจำวันภายใน {{ status_summary.report_deadline }} น.</p></div>
+      <a class="btn btn-sm" href="{{ url_for('admin.monitor') }}">ดูรายละเอียด</a>
+    </div>
+    <div class="panel-body">
+      {% if status_rows %}
+      <div class="board">
+        {% for row in status_rows %}
+        <article class="keytag">
+          <div class="keytag-name">{{ row.branch.name }}</div>
+          <div class="slots">
+            {% for rec, ep, arg, label in [(row.audit, 'audits.detail', 'audit_id', 'ตรวจเช้า'), (row.report, 'reports.detail', 'report_id', 'รายงาน')] %}
+              {% if rec.id %}
+                <a class="slot {{ rec.status }}" href="{{ url_for(ep, **{arg: rec.id}) }}"><strong>{{ label }}</strong>{{ rec.status|status_label }}<span class="slot-time">{{ rec.time }}</span></a>
+              {% else %}
+                <span class="slot {{ rec.status }}"><strong>{{ label }}</strong>{{ rec.status|status_label }}</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+        {{ ui.empty('map-pin-off', 'ยังไม่มีสาขา', 'เพิ่มสาขาเพื่อเริ่มติดตามการส่งรายงาน', url_for('admin.branches'), 'ไปที่หน้าสาขา') }}
+      {% endif %}
+    </div>
+  </section>
+
+  {% else %}
+  {# Team members: the two things due today, each with its state and one button. #}
+  {% set audit_done = row and row.audit.id %}
+  {% set report_done = row and row.report.id %}
+  <section class="panel">
+    <div class="panel-head"><div><h2>งานวันนี้</h2>{% if row %}<p>{{ row.branch.name }}</p>{% endif %}</div></div>
+    <ul class="todo">
+      <li class="todo-item{% if audit_done %} done{% endif %}">
+        <span class="todo-mark" aria-hidden="true"><i data-lucide="check"></i></span>
+        <div class="what"><strong>ตรวจสาขาตอนเช้า</strong>
+          <small>{% if audit_done %}ส่งแล้วเมื่อ {{ row.audit.time }} น.{% else %}ส่งภายใน {{ status_summary.audit_deadline }} น.{% endif %}</small></div>
+        {% if row and row.audit.status in ('LATE', 'MISSING') %}{{ ui.tag(row.audit.status) }}{% endif %}
+        {% if audit_done %}<a class="btn" href="{{ url_for('audits.detail', audit_id=row.audit.id) }}">เปิดดู</a>
+        {% else %}<a class="btn btn-primary" href="{{ url_for('audits.new') }}">เริ่มตรวจ</a>{% endif %}
+      </li>
+      <li class="todo-item{% if report_done %} done{% endif %}">
+        <span class="todo-mark" aria-hidden="true"><i data-lucide="check"></i></span>
+        <div class="what"><strong>รายงานประจำวัน</strong>
+          <small>{% if report_done %}ส่งแล้วเมื่อ {{ row.report.time }} น.{% else %}ส่งภายใน {{ status_summary.report_deadline }} น.{% endif %}</small></div>
+        {% if row and row.report.status in ('LATE', 'MISSING') %}{{ ui.tag(row.report.status) }}{% endif %}
+        {% if report_done %}<a class="btn" href="{{ url_for('reports.detail', report_id=row.report.id) }}">เปิดดู</a>
+        {% else %}<a class="btn{% if audit_done or not row %} btn-primary{% endif %}" href="{{ url_for('reports.new') }}">เขียนรายงาน</a>{% endif %}
+      </li>
+      {% if cleaning_allowed %}
+      <li class="todo-item plain">
+        <span class="todo-mark" aria-hidden="true"><i data-lucide="spray-can"></i></span>
+        <div class="what"><strong>ตารางทำความสะอาด</strong><small>ติ๊กงานของวันนี้เมื่อทำเสร็จ</small></div>
+        <a class="btn" href="{{ url_for('cleaning.sheet') }}">เปิดตาราง</a>
+      </li>
+      {% endif %}
+    </ul>
+    {% if open_requests %}<div class="panel-foot small">คำขอเบิกของคุณ {{ open_requests }} รายการกำลังรออนุมัติ <a href="{{ url_for('requests.index') }}">ดูคำขอ</a></div>{% endif %}
+  </section>
+  {% endif %}
+
+  <div class="grid grid-main">
+    <section class="panel">
+      <div class="panel-head"><div><h2>การตรวจล่าสุด</h2></div><a class="btn btn-sm btn-ghost" href="{{ url_for('audits.index') }}">ดูทั้งหมด</a></div>
+      {% if recent_audits %}
+      <div class="table-wrap">
+      <table class="table responsive">
+        <thead><tr><th>สาขา</th><th>วันที่</th><th>ผ่านเกณฑ์</th><th>สถานะ</th></tr></thead>
+        <tbody>
+        {% for a in recent_audits %}
+          <tr>
+            <td class="primary"><a class="cell-title" href="{{ url_for('audits.detail', audit_id=a.id) }}">{{ a.branch_name }}</a><span class="cell-sub">{{ a.submitted_by }}</span></td>
+            <td data-label="วันที่" class="nowrap">{{ a.audit_date|date }}</td>
+            <td>{{ ui.meter(a.rate) }}</td>
+            <td>{{ ui.verified(a) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+        {{ ui.empty('clipboard-list', 'ยังไม่มีการตรวจ', 'เริ่มตรวจสาขาครั้งแรกของวันได้เลย', url_for('audits.new'), 'เริ่มตรวจสาขา') }}
+      {% endif %}
+    </section>
+
+    <div class="stack-lg">
+      <section class="panel">
+        <div class="panel-head"><div><h2>อัตราผ่านเกณฑ์ 14 วันล่าสุด</h2><p>{% if avg_rate is not none %}เฉลี่ย {{ avg_rate|round(1) }}% จากการตรวจ {{ audit_count }} ครั้งใน 30 วัน{% else %}ยังไม่มีการตรวจใน 30 วันล่าสุด{% endif %}</p></div></div>
+        <div class="panel-body">
+          <div class="trend" role="img" aria-label="อัตราผ่านเกณฑ์รายวัน 14 วันล่าสุด">
+            {% for d in trend_days %}
+              {% set r = d.rate %}
+              <div class="trend-bar" title="{{ d.date|date }}: {{ (r ~ '%') if r is not none else 'ไม่มีการตรวจ' }}">
+                <div class="col {{ 'none' if r is none else ('' if r >= 95 else ('watch' if r >= 85 else 'low')) }}" style="height: {{ (r or 0) }}%"></div>
+                <span>{{ d.date.day }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>รายงานประจำวันล่าสุด</h2><p>{{ report_count }} ฉบับใน 30 วันล่าสุด</p></div><a class="btn btn-sm btn-ghost" href="{{ url_for('reports.index') }}">ดูทั้งหมด</a></div>
+        {% if recent_reports %}
+        <ul class="list-plain">
+          {% for r in recent_reports %}
+          <li>
+            <div class="what"><a href="{{ url_for('reports.detail', report_id=r.id) }}">{{ r.branch_name }}</a><small>{{ r.report_date|date }}{% if r.team %} · {{ r.team }}{% endif %} · {{ r.submitted_by }}</small></div>
+            {{ ui.verified(r) }}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+          {{ ui.empty('files', 'ยังไม่มีรายงานประจำวัน', 'รายงานจะถูกส่งเมื่อจบกะในแต่ละวัน') }}
+        {% endif %}
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

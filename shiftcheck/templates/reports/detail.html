@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}รายงานประจำวัน #{{ report.id }}{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('reports.index') }}"><i data-lucide="arrow-left"></i>รายงานประจำวัน</a>
+<div class="page-head">
+  <div>
+    <h1>{{ report.branch_name }} · {{ report.report_date|date('%d %B %Y') }}</h1>
+    <p>รายงานประจำวัน #{{ report.id }}{% if report.team %} · {{ report.team }}{% endif %} · ส่งโดย {{ report.submitted_by }} เวลา {{ report.created_at|time }}</p>
+  </div>
+  <div class="page-actions">
+    {% if report.linked_audit_id %}<a class="btn" href="{{ url_for('audits.detail', audit_id=report.linked_audit_id) }}"><i data-lucide="clipboard-check"></i>ผลตรวจเช้า</a>{% endif %}
+    <a class="btn" href="{{ url_for('reports.export_pdf', report_id=report.id) }}" target="_blank" rel="noopener"><i data-lucide="file-down"></i>PDF</a>
+    {% if current_user.is_admin %}
+    {% call ui.more_menu() %}
+      <form method="post" action="{{ url_for('reports.delete', report_id=report.id) }}" data-confirm="รายงาน รูปถ่าย และลายเซ็นจะถูกลบถาวร" data-confirm-title="ลบรายงานประจำวัน #{{ report.id }}?" data-confirm-label="ลบ" data-danger>
+        {{ ui.csrf() }}<button class="danger" type="submit" role="menuitem"><i data-lucide="trash-2"></i>ลบรายงานนี้</button>
+      </form>
+    {% endcall %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="form-layout">
+  <div class="stack-lg">
+    <section class="panel">
+      <div class="panel-head"><div><h2>ลูกค้า</h2><p>รวม {{ report.visitor_total }} คน</p></div></div>
+      <div class="figures" style="border:0;border-radius:0">
+        {% for key, label in visitor_fields %}
+          <div class="figure"><div class="label">{{ label }}</div><div class="value">{{ report.visitor_stats.get(key, 0) or 0 }}</div></div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>พนักงานประจำวัน</h2><p>อยู่ที่สาขา {{ on_site }} คน</p></div>{% if 'staffing' in report.from_audit %}<span class="chip"><i data-lucide="link"></i>จากการตรวจเช้า</span>{% endif %}</div>
+      <div class="table-wrap">{{ ui.staffing_table(staffing_fields, report.staffing) }}</div>
+    </section>
+
+    <div class="grid grid-2">
+      <section class="panel">
+        <div class="panel-head"><h2>การประชุมเช้า</h2>{% if 'briefing' in report.from_audit %}<span class="chip"><i data-lucide="link"></i>จากการตรวจเช้า</span>{% endif %}</div>
+        {{ ui.notes_list(report.briefing, 'ไม่มีบันทึกการประชุมเช้า') }}
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>สรุปผลการทำงาน</h2></div>
+        {{ ui.notes_list(report.summary, 'ไม่มีบันทึกสรุปผล') }}
+      </section>
+    </div>
+
+    {% if report.extra_tasks %}
+    <section class="panel"><div class="panel-head"><h2>งานอื่น ๆ / ปัญหาที่พบ</h2></div><div class="panel-body"><p style="white-space:pre-line;margin:0">{{ report.extra_tasks }}</p></div></section>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>รูปถ่าย</h2><p>แนบ {{ report.photos|length }} รูป</p></div>{% if 'photos' in report.from_audit %}<span class="chip"><i data-lucide="link"></i>จากการตรวจเช้า</span>{% endif %}</div>
+      <div class="panel-body">{{ ui.photo_gallery(report.photos) }}</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>ลงชื่อรับรอง</h2></div>
+      <div class="panel-body">{{ ui.signatures_view(report.signoffs) }}</div>
+    </section>
+  </div>
+
+  <aside class="form-aside stack">
+    {% if current_user.is_admin %}{{ ui.verify_panel(report, url_for('reports.verify', report_id=report.id)) }}{% else %}
+      <section class="panel"><div class="panel-body row between"><span>การตรวจรับรอง</span>{{ ui.verified(report) }}</div></section>
+    {% endif %}
+    {{ ui.photo_check_panel(report, url_for('reports.photo_check', report_id=report.id)) }}
+  </aside>
+</div>
+{% endblock %}

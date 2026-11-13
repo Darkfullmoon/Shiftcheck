@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}รายงานประจำวัน{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>รายงานประจำวัน</h1>
+    <p>สรุปปิดวัน กรอกเฉพาะส่วนที่มีข้อมูล</p>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('reports.new') }}" data-kind="report" data-check-url="{{ url_for('reports.check_existing') }}" data-busy>
+  {{ ui.csrf() }}
+  <div class="form-layout">
+    <div class="stack-lg">
+      <section class="panel">
+        <div class="panel-body form-grid">
+          <div class="field"><label for="branch">สาขา</label>
+            {% if branches|length > 1 %}{{ ui.branch_select(branches, branch.id) }}{% else %}<input class="input" value="{{ branch.name }}" readonly><input type="hidden" name="branch" value="{{ branch.id }}">{% endif %}
+          </div>
+          <div class="field"><label for="date">วันที่</label><input class="input" type="date" id="date" name="date" value="{{ report_date.isoformat() }}" max="{{ now.date().isoformat() }}"></div>
+          <div class="field full"><label for="team">ชื่อทีมหรือกะ <span class="muted">(ไม่บังคับ)</span></label><input class="input" id="team" name="team" placeholder="เช่น ทีมเสาร์-อาทิตย์" maxlength="100"></div>
+          <div class="full notice warning" data-existing-notice {% if not existing %}hidden{% endif %}><i data-lucide="triangle-alert"></i>
+            <span data-existing-text>{% if existing %}ส่งแล้วโดย <strong>{{ existing.submitted_by }}</strong> เวลา {{ existing.created_at|time }} <a href="{{ url_for('reports.detail', report_id=existing.id) }}">เปิดดู</a>{% endif %}</span></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>ลูกค้าวันนี้</h2><p>ตัวเลขนี้ใช้ในหน้าสถิติลูกค้ารายสัปดาห์</p></div></div>
+        <div class="panel-body grid grid-3">
+          {% for key, label in visitor_fields %}
+            <div class="field"><label for="visit_{{ key }}">{{ label }}</label><input class="input" type="number" min="0" max="9999" inputmode="numeric" id="visit_{{ key }}" name="visit_{{ key }}" placeholder="0"></div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div><h2>พนักงานประจำวัน</h2><p>{% if audit %}เว้นว่างไว้เพื่อใช้ข้อมูลจากการตรวจเช้าวันนี้{% else %}ใครมาทำงานและใครลาบ้าง{% endif %}</p></div>
+          {% if audit %}<a class="chip" href="{{ url_for('audits.detail', audit_id=audit.id) }}"><i data-lucide="link"></i>ตรวจเช้า #{{ audit.id }}</a>{% endif %}
+        </div>
+        {{ ui.staffing_inputs(staffing_fields) }}
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>การประชุมเช้า</h2><p>{{ 'ไม่บังคับ หากบันทึกไว้ในการตรวจเช้าแล้ว' if audit else 'แผนงานของวันนี้' }}</p></div></div>
+        <div class="panel-body">{{ ui.notes_editor('brief', 'การประชุมเช้า', 'เช่น มีลูกค้านัดหมาย 2 รายช่วงบ่าย') }}</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>สรุปผลการทำงาน</h2><p>ผลงานของแต่ละคนในวันนี้</p></div></div>
+        <div class="panel-body stack">
+          {{ ui.notes_editor('sum', 'สรุปผล', 'เช่น ปิดการจองได้ 1 ราย นัดโทรติดตามวันจันทร์') }}
+          <div class="field"><label for="extra_tasks">งานอื่น ๆ / ปัญหาที่พบ</label><textarea class="textarea" id="extra_tasks" name="extra_tasks" placeholder="การรับของ ช่างเข้าซ่อม หรือเหตุการณ์ผิดปกติ"></textarea></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>รูปถ่าย</h2><p>ไม่บังคับ สูงสุด {{ max_photos }} รูป{% if audit %} หากไม่แนบ ระบบจะแสดงรูปจากการตรวจเช้าวันนี้{% endif %}</p></div></div>
+        <div class="panel-body">{{ ui.photo_capture(max_photos, 0) }}</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>ลงชื่อรับรอง</h2></div>
+        <div class="panel-body">{{ ui.signature_inputs(signoff_roles) }}</div>
+      </section>
+    </div>
+
+    <aside class="form-aside submit-bar">
+      <section class="panel">
+        <div class="panel-body">
+          <div class="submit-extra stack">
+            <div><div class="muted small">รายงานของสาขา</div><div class="num" style="font-size:1.3rem;font-weight:600">{{ branch.name }}</div></div>
+            <p class="muted small" style="margin:0">ส่งภายใน {{ config.REPORT_DEADLINE.strftime('%H:%M') }} น. หลังส่งแล้วแก้ไขไม่ได้</p>
+          </div>
+          <button class="btn btn-primary btn-lg btn-block" type="submit"><i data-lucide="send"></i>ส่งรายงาน</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+</form>
+{% endblock %}

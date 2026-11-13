@@ -1,0 +1,150 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}ตรวจสาขา{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>ตรวจสาขา{% if branches|length == 1 %} {{ branch.name }}{% endif %}</h1>
+    <p>ทุกข้อเริ่มที่ “ผ่าน” เปลี่ยนเฉพาะข้อที่พบปัญหาหรือไม่ต้องตรวจวันนี้</p>
+  </div>
+  {# Only the choices this person really has: one branch or one checklist needs no picker. #}
+  <form class="page-actions" method="get" action="{{ url_for('audits.new') }}">
+    {% if branches|length > 1 %}{{ ui.branch_select(branches, branch.id, auto=True) }}{% else %}<input type="hidden" name="branch" value="{{ branch.id }}">{% endif %}
+    {% if templates|length > 1 %}
+      <select class="select" id="template" name="template" data-autosubmit aria-label="เช็กลิสต์">
+        {% for t in templates %}<option value="{{ t.id }}" {% if t.id == template.id %}selected{% endif %}>{{ t.name }}{% if t.is_default %} (ค่าเริ่มต้น){% endif %}</option>{% endfor %}
+      </select>
+    {% else %}<input type="hidden" name="template" value="{{ template.id }}">{% endif %}
+    <input class="input" type="date" id="date" name="date" value="{{ audit_date.isoformat() }}" max="{{ now.date().isoformat() }}" onchange="this.form.submit()" aria-label="วันที่ตรวจ">
+    <noscript><button class="btn" type="submit">โหลด</button></noscript>
+  </form>
+</div>
+
+{% if existing %}
+  <div class="notice warning" style="margin-bottom:18px"><i data-lucide="triangle-alert"></i>
+    <div>สาขา {{ branch.name }} มีรายงานตรวจของวันนี้แล้ว ส่งโดย {{ existing.submitted_by }} เวลา {{ existing.created_at|time }}
+    <a href="{{ url_for('audits.detail', audit_id=existing.id) }}">เปิดดู</a> · ผู้ดูแลระบบยังสามารถส่งเพิ่มได้</div></div>
+{% endif %}
+
+<form method="post" action="{{ url_for('audits.new') }}" data-kind="audit" data-busy id="audit-form">
+  {{ ui.csrf() }}
+  <input type="hidden" name="branch" value="{{ branch.id }}">
+  <input type="hidden" name="date" value="{{ audit_date.isoformat() }}">
+  <input type="hidden" name="template" value="{{ template.id }}">
+
+  <div class="form-layout">
+    <div class="stack-lg">
+      {% set num = namespace(n=0) %}
+      {% for section in template.sections %}
+      <section class="panel section-block" id="section-{{ loop.index }}">
+        <div class="panel-head section-title">
+          <h2>{{ section.title }}</h2>
+          <span class="count">{{ section['items']|length }} รายการ</span>
+        </div>
+        {% for item in section['items'] %}
+          {% set num.n = num.n + 1 %}
+          {% set status = (form.get('status_' ~ item.id) if form else 'PASS') or 'PASS' %}
+          <div class="check-item{% if status == 'FAIL' %} is-fail{% endif %}" data-item>
+            <span class="no" aria-hidden="true">{{ num.n }}</span>
+            <div>
+              <div class="text" id="item-{{ item.id }}">{{ item.title }}</div>
+              {% if item.guidance %}<div class="guidance">{{ item.guidance }}</div>{% endif %}
+            </div>
+            <div class="segmented" role="radiogroup" aria-labelledby="item-{{ item.id }}">
+              {% for value, label in [('PASS', 'ผ่าน'), ('FAIL', 'ไม่ผ่าน'), ('NA', 'ไม่เกี่ยวข้อง')] %}
+                <input type="radio" id="s{{ item.id }}{{ value }}" name="status_{{ item.id }}" value="{{ value }}" {% if status == value %}checked{% endif %}>
+                <label for="s{{ item.id }}{{ value }}">{{ label }}</label>
+              {% endfor %}
+            </div>
+            <div class="evidence" data-evidence {% if status != 'FAIL' %}hidden{% endif %}>
+              {% for f in item.evidence_fields %}
+                <div class="field"><label for="ev_{{ item.id }}_{{ loop.index0 }}">{{ f.label }}</label>
+                  <input class="input" id="ev_{{ item.id }}_{{ loop.index0 }}" name="ev_{{ item.id }}_{{ loop.index0 }}" type="{{ f.type }}" {% if f.type == 'number' %}min="0" inputmode="numeric"{% endif %} value="{{ form.get('ev_' ~ item.id ~ '_' ~ loop.index0, '') if form else '' }}"></div>
+              {% else %}
+                <div class="field"><span class="muted small">ระบุรายละเอียดปัญหาในช่องบันทึกของผู้ตรวจท้ายฟอร์ม</span></div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </section>
+      {% endfor %}
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>พนักงานประจำวัน</h2><p>กรอกเฉพาะช่องที่มี ใช้เทียบกับจำนวนคนในรูปทีม</p></div></div>
+        {{ ui.staffing_inputs(staffing_fields) }}
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>การประชุมเช้า</h2><p>งานที่แต่ละคนรับผิดชอบวันนี้</p></div></div>
+        <div class="panel-body">{{ ui.notes_editor('brief', 'การประชุมเช้า', 'เช่น ดูแลลูกค้า Walk-in ถึงเที่ยง แล้วโทรหาซัพพลายเออร์') }}</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>รูปถ่าย</h2><p>{% if template.photo_min %}ต้องแนบอย่างน้อย {{ template.photo_min }} รูป สูงสุด {{ max_photos }} รูป{% else %}ไม่บังคับ สูงสุด {{ max_photos }} รูป{% endif %}</p></div></div>
+        <div class="panel-body">{{ ui.photo_capture(max_photos, template.photo_min) }}</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><h2>บันทึกและลงชื่อ</h2></div></div>
+        <div class="panel-body stack">
+          <div class="field"><label for="notes">บันทึกของผู้ตรวจ</label><textarea class="textarea" id="notes" name="notes" placeholder="สิ่งที่กะถัดไปหรือผู้จัดการควรทราบ">{{ form.get('notes', '') if form else '' }}</textarea></div>
+          {{ ui.signature_inputs(signoff_roles) }}
+        </div>
+      </section>
+    </div>
+
+    <aside class="form-aside submit-bar stack">
+      <section class="panel progress-card">
+        <div class="panel-body">
+          <div class="submit-score"><div class="muted small">อัตราผ่านเกณฑ์ขณะนี้</div><div class="score num" data-score>100%</div></div>
+          <div class="submit-extra">
+            <div class="progress-bar" aria-hidden="true"><span class="p" data-bar-p></span><span class="f" data-bar-f></span><span class="n" data-bar-n></span></div>
+            <div class="legend"><span><i style="background:var(--ok)"></i><b data-c-pass>0</b> ผ่าน</span><span><i style="background:var(--bad)"></i><b data-c-fail>0</b> ไม่ผ่าน</span><span><i style="background:var(--line-strong)"></i><b data-c-na>0</b> ไม่เกี่ยวข้อง</span></div>
+            <div class="muted small">{{ template.name }} · {{ branch.name }} · {{ audit_date|date }}</div>
+          </div>
+          <button class="btn btn-primary btn-lg btn-block" type="submit"><i data-lucide="send"></i>ส่งผลตรวจ</button>
+        </div>
+      </section>
+      {% if template.sections|length > 1 %}
+      <nav class="panel" aria-label="หมวด">
+        <ul class="list-plain small">
+          {% for section in template.sections %}<li><a href="#section-{{ loop.index }}">{{ section.title }}</a></li>{% endfor %}
+        </ul>
+      </nav>
+      {% endif %}
+    </aside>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById('audit-form');
+  const items = Array.from(form.querySelectorAll('[data-item]'));
+  function update() {
+    const c = { PASS: 0, FAIL: 0, NA: 0 };
+    items.forEach((el) => {
+      const v = (el.querySelector('input[type=radio]:checked') || {}).value || 'PASS';
+      c[v]++;
+      el.classList.toggle('is-fail', v === 'FAIL');
+      el.querySelector('[data-evidence]').hidden = v !== 'FAIL';
+    });
+    const scored = c.PASS + c.FAIL, total = items.length || 1;
+    form.querySelector('[data-score]').textContent = (scored ? Math.round(c.PASS / scored * 1000) / 10 : 100) + '%';
+    form.querySelector('[data-bar-p]').style.width = (c.PASS / total * 100) + '%';
+    form.querySelector('[data-bar-f]').style.width = (c.FAIL / total * 100) + '%';
+    form.querySelector('[data-bar-n]').style.width = (c.NA / total * 100) + '%';
+    form.querySelector('[data-c-pass]').textContent = c.PASS;
+    form.querySelector('[data-c-fail]').textContent = c.FAIL;
+    form.querySelector('[data-c-na]').textContent = c.NA;
+  }
+  form.addEventListener('change', (e) => {
+    if (e.target.type !== 'radio') return;
+    update();
+    if (e.target.value === 'FAIL') e.target.closest('[data-item]').querySelector('[data-evidence] input')?.focus();
+  });
+  update();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}สถิติลูกค้า{% endblock %}
+{% block content %}
+{% set current = weeks[0] %}
+{% set previous = weeks[1] if weeks|length > 1 else None %}
+<div class="page-head">
+  <div><h1>สถิติลูกค้า</h1><p>จำนวนลูกค้าจากรายงานประจำวัน แบ่งเป็นสัปดาห์ (จันทร์–อาทิตย์)</p></div>
+  <form class="page-actions" method="get">
+    {{ ui.branch_select(branches, branch_id, all_label='ทุกสาขา', auto=True) }}
+    <select class="select" name="weeks" data-autosubmit aria-label="จำนวนสัปดาห์">
+      {% for n in [4, 8, 12, 16] %}<option value="{{ n }}" {% if n == week_count %}selected{% endif %}>{{ n }} สัปดาห์ล่าสุด</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="stack-lg">
+  <div class="figures">
+    {% set elapsed = current.days|rejectattr('is_future')|list|length %}
+    {% set prev_same = previous.days[:elapsed]|sum(attribute='total') if previous else 0 %}
+    <div class="figure"><div class="label">สัปดาห์นี้ (ถึงวันนี้)</div><div class="value">{{ current.total }}</div>
+      <div class="hint">{% if prev_same %}{% set delta = ((current.total - prev_same) / prev_same * 100)|round(0)|int %}{{ '+' if delta > 0 }}{{ delta }}% เทียบกับ {{ elapsed }} วันแรกของสัปดาห์ก่อน{% else %}{{ current.start|date('%d %b') }} – {{ current.end|date('%d %b') }}{% endif %}</div></div>
+    <div class="figure"><div class="label">สัปดาห์ก่อน</div><div class="value">{{ previous.total if previous else '—' }}</div>
+      <div class="hint">{{ previous.start|date('%d %b') }} – {{ previous.end|date('%d %b') }}</div></div>
+    {% set total_all = weeks|sum(attribute='total') %}
+    {% set reports_all = weeks|sum(attribute='reports') %}
+    <div class="figure"><div class="label">เฉลี่ยต่อสัปดาห์</div><div class="value">{{ (total_all / weeks|length)|round(0)|int }}</div><div class="hint">จาก {{ weeks|length }} สัปดาห์</div></div>
+    <div class="figure"><div class="label">เฉลี่ยต่อรายงาน</div><div class="value">{{ (total_all / reports_all)|round(1) if reports_all else '—' }}</div><div class="hint">จาก {{ reports_all }} รายงาน</div></div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head"><div><h2>รายสัปดาห์</h2><p>แท่งกราฟแบ่งตามประเภทลูกค้า</p></div>
+      <div class="legend">{% for key, label in fields %}<span><i class="series-{{ loop.index }}"></i>{{ label }}</span>{% endfor %}</div></div>
+    <div class="panel-body">
+      {% set max_week = (weeks|map(attribute='total')|max) or 1 %}
+      <div class="week-chart" style="grid-template-columns: repeat({{ weeks|length }}, 1fr)" role="img" aria-label="จำนวนลูกค้าต่อสัปดาห์">
+        {% for w in weeks|reverse %}
+          <div class="bar-col" title="{{ w.start|date('%d %b') }}: ลูกค้า {{ w.total }} คน">
+            <span class="bar-value">{{ w.total }}</span>
+            <div class="bar" style="height: {{ (w.total / max_week * 100)|round(1) }}%">
+              {% for key, label in fields %}{% if w.total %}<span class="series-{{ loop.index }}" style="height: {{ (w.totals[key] / w.total * 100)|round(1) }}%"></span>{% endif %}{% endfor %}
+            </div>
+            <span class="bar-label">{{ w.start|date('%d %b') }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  {% for w in weeks %}
+  <details class="panel" {% if loop.first %}open{% endif %}>
+    <summary class="panel-head" style="cursor:pointer;list-style:none">
+      <div><h3>{{ w.start|date('%d %b') }} – {{ w.end|date('%d %b %Y') }}</h3><p>ลูกค้า {{ w.total }} คน จาก {{ w.reports }} รายงาน</p></div>
+      <i data-lucide="chevron-down"></i>
+    </summary>
+    <div class="table-wrap">
+    <table class="table compact">
+      <thead><tr><th>วัน</th>{% for key, label in fields %}<th>{{ label }}</th>{% endfor %}<th>รวม</th></tr></thead>
+      <tbody>
+      {% for d in w.days %}
+        <tr{% if d.is_future %} class="muted"{% endif %}>
+          <td class="nowrap">{{ d.date|date('%a %d %b') }}</td>
+          {% for key, label in fields %}<td class="num">{{ d.breakdown[key] if d.reports else '—' }}</td>{% endfor %}
+          <td class="num"><strong>{{ d.total if d.reports else '—' }}</strong></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% endblock %}

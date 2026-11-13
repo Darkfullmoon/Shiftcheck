@@ -1,0 +1,26 @@
+# Local MySQL for development. Values come from your .env file.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: shiftcheck-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-shiftcheck}
+      MYSQL_USER: ${DB_USER:-shiftcheck}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "127.0.0.1:${DB_PORT:-3320}:3306"
+    volumes:
+      - shiftcheck_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  shiftcheck_mysql:

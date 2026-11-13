@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}ประวัติทำความสะอาด{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>ประวัติทำความสะอาด</h1><p>ตารางของเดือนก่อน ๆ และความครบถ้วน</p></div>
+  <div class="page-actions"><a class="btn btn-primary" href="{{ url_for('cleaning.sheet') }}"><i data-lucide="spray-can"></i>เดือนนี้</a></div>
+</div>
+<section class="panel">
+  {% if branches|length > 1 %}
+  <form class="panel-head filters" method="get"><div class="field"><label for="branch">สาขา</label>{{ ui.branch_select(branches, branch_id, all_label='ทุกสาขา', auto=True) }}</div></form>
+  {% endif %}
+  {% if schedules %}
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>เดือน</th><th>สาขา</th><th>งานรายวันที่ทำ</th><th>งานรายสัปดาห์</th><th>แก้ไขล่าสุด</th><th class="actions"><span class="sr-only">จัดการ</span></th></tr></thead>
+    <tbody>
+    {% for s in schedules %}
+      <tr>
+        <td class="primary"><a class="cell-title" href="{{ url_for('cleaning.sheet', branch=s.branch_id, month=s.month) }}">{{ s.label }}</a></td>
+        <td data-label="สาขา">{{ s.branch_name }}</td>
+        <td>{{ ui.meter(s.completion) }}</td>
+        <td data-label="รายสัปดาห์" class="num">{{ s.weekly_done }} / {{ s.weeks }}</td>
+        <td data-label="แก้ไขล่าสุด">{{ s.updated_at|datetime }}<span class="cell-sub">{{ s.submitted_by }}</span></td>
+        <td class="actions"><a class="btn btn-sm btn-ghost" href="{{ url_for('cleaning.export_pdf', schedule_id=s.id) }}" target="_blank" rel="noopener"><i data-lucide="file-down"></i>PDF</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+    {{ ui.empty('calendar-x', 'ยังไม่มีตารางที่บันทึก', 'ตารางจะแสดงที่นี่หลังบันทึกครั้งแรก', url_for('cleaning.sheet'), 'เปิดตารางเดือนนี้') }}
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}ผู้ใช้งาน{% endblock %}
+{% macro user_fields(u=None) %}
+  <div class="form-grid">
+    {% if not u %}<div class="field"><label>ชื่อผู้ใช้</label><input class="input" name="username" required pattern="[a-z0-9][a-z0-9._\-]{2,31}" autocapitalize="none" placeholder="เช่น jordan.lee"><span class="hint">อักษรภาษาอังกฤษพิมพ์เล็ก ตัวเลข จุด หรือขีด</span></div>{% endif %}
+    <div class="field{% if u %} full{% endif %}"><label>ชื่อ-นามสกุล</label><input class="input" name="full_name" value="{{ u.full_name if u and u.full_name else '' }}" maxlength="100"></div>
+    <div class="field"><label>บทบาท</label>
+      <select class="select" name="role"><option value="USER">พนักงาน</option><option value="ADMIN" {% if u and u.role == 'ADMIN' %}selected{% endif %}>ผู้ดูแลระบบ</option></select></div>
+    <div class="field"><label>สาขา</label>
+      <select class="select" name="branch_id"><option value="">ไม่กำหนด (เลือกได้ในแต่ละฟอร์ม)</option>
+        {% for b in branches %}<option value="{{ b.id }}" {% if u and u.branch_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+      </select></div>
+    {% if not u %}<div class="field full"><label>รหัสผ่านชั่วคราว <span class="muted">(ไม่บังคับ)</span></label><input class="input" name="password" autocomplete="new-password" placeholder="เว้นว่างเพื่อให้ระบบสร้างให้"><span class="hint">ผู้ใช้ต้องเปลี่ยนรหัสเมื่อเข้าสู่ระบบครั้งแรก</span></div>{% endif %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div><h1>ผู้ใช้งาน</h1><p>บัญชีผู้ใช้ บทบาท และสาขาที่แต่ละคนรับผิดชอบ</p></div>
+  <div class="page-actions"><button class="btn btn-primary" type="button" data-open-dialog="dlg-new"><i data-lucide="user-plus"></i>เพิ่มผู้ใช้</button></div>
+</div>
+
+{% set reveal = session.pop('reveal_password', None) %}
+{% if reveal %}
+<div class="notice success stack" style="margin-bottom:18px;display:block">
+  <p style="margin:0 0 8px">รหัสผ่านชั่วคราวของ <strong>{{ reveal.username }}</strong> (แสดงเพียงครั้งเดียว):</p>
+  <div class="secret">{{ reveal.password }}</div>
+</div>
+{% endif %}
+
+<section class="panel">
+  {% set active_filters = [role, branch_id]|select|list|length %}
+  {% call ui.filter_bar('admin.users', q, 'ค้นหาชื่อผู้ใช้หรือชื่อ-นามสกุล', active_filters) %}
+    <div class="field"><label for="role">บทบาท</label><select class="select" id="role" name="role"><option value="">ทั้งหมด</option><option value="ADMIN" {% if role == 'ADMIN' %}selected{% endif %}>ผู้ดูแลระบบ</option><option value="USER" {% if role == 'USER' %}selected{% endif %}>พนักงาน</option></select></div>
+    <div class="field"><label for="branch">สาขา</label>{{ ui.branch_select(branches, branch_id, all_label='ทั้งหมด') }}</div>
+  {% endcall %}
+  {% if users %}
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>ผู้ใช้</th><th>บทบาท</th><th>สาขา</th><th>เข้าระบบล่าสุด</th><th class="actions"><span class="sr-only">จัดการ</span></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td class="primary"><div class="row" style="gap:10px;flex-wrap:nowrap"><span class="avatar">{{ (u.full_name or u.username)|initials }}</span><div><span class="cell-title">{{ u.full_name or u.username }}</span><span class="cell-sub">{{ u.username }}{% if u.must_change_password %} · ต้องตั้งรหัสผ่านใหม่{% endif %}</span></div></div></td>
+        <td data-label="บทบาท">{% if u.role == 'ADMIN' %}<span class="tag info">ผู้ดูแลระบบ</span>{% else %}พนักงาน{% endif %}</td>
+        <td data-label="สาขา">{{ u.branch_name or '—' }}</td>
+        <td data-label="เข้าระบบล่าสุด">{{ u.last_login_at|datetime if u.last_login_at else 'ยังไม่เคย' }}</td>
+        <td class="actions">
+          <button class="btn btn-sm" type="button" data-open-dialog="dlg-{{ u.id }}">แก้ไข</button>
+          {% call ui.more_menu('การทำงานเพิ่มเติมของ ' ~ u.username, small=True) %}
+            <form method="post" action="{{ url_for('admin.reset_password', user_id=u.id) }}" data-confirm="ระบบจะสร้างรหัสผ่านชั่วคราวใหม่ และรหัสผ่านปัจจุบันจะใช้ไม่ได้" data-confirm-title="รีเซ็ตรหัสผ่านของ {{ u.username }}?" data-confirm-label="รีเซ็ตรหัสผ่าน">{{ ui.csrf() }}<button type="submit" role="menuitem"><i data-lucide="key-round"></i>รีเซ็ตรหัสผ่าน</button></form>
+            {% if u.id != current_user.id %}
+            <form method="post" action="{{ url_for('admin.delete_user', user_id=u.id) }}" data-confirm="รายงานเดิมของผู้ใช้นี้ยังคงอยู่" data-confirm-title="ลบ {{ u.username }}?" data-confirm-label="ลบ" data-danger>{{ ui.csrf() }}<button class="danger" type="submit" role="menuitem"><i data-lucide="trash-2"></i>ลบผู้ใช้</button></form>
+            {% endif %}
+          {% endcall %}
+          <dialog id="dlg-{{ u.id }}" class="dialog">
+            <form method="post" action="{{ url_for('admin.update_user', user_id=u.id) }}">
+              {{ ui.csrf() }}
+              <div class="modal-head"><h3>แก้ไข {{ u.username }}</h3><button class="icon-btn" type="button" data-close-dialog aria-label="ปิด"><i data-lucide="x"></i></button></div>
+              <div class="modal-body">{{ user_fields(u) }}</div>
+              <div class="modal-foot"><button class="btn btn-ghost" type="button" data-close-dialog>ยกเลิก</button><button class="btn btn-primary" type="submit">บันทึก</button></div>
+            </form>
+          </dialog>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}{{ ui.empty('users', 'ไม่พบผู้ใช้', 'ล้างตัวกรองหรือเพิ่มผู้ใช้ใหม่') }}{% endif %}
+</section>
+
+<dialog id="dlg-new" class="dialog">
+  <form method="post" action="{{ url_for('admin.create_user') }}">
+    {{ ui.csrf() }}
+    <div class="modal-head"><h3>เพิ่มผู้ใช้</h3><button class="icon-btn" type="button" data-close-dialog aria-label="ปิด"><i data-lucide="x"></i></button></div>
+    <div class="modal-body">{{ user_fields() }}</div>
+    <div class="modal-foot"><button class="btn btn-ghost" type="button" data-close-dialog>ยกเลิก</button><button class="btn btn-primary" type="submit">สร้างบัญชี</button></div>
+  </form>
+</dialog>
+{% endblock %}

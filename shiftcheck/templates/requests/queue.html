@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}อนุมัติคำขอ{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>อนุมัติคำขอ</h1><p>เรียงจากคำขอเก่าสุด หากไม่อนุมัติควรใส่หมายเหตุ เพื่อให้ผู้ขอรู้ว่าต้องทำอะไรต่อ</p></div>
+  <div class="page-actions"><a class="btn" href="{{ url_for('requests.index') }}"><i data-lucide="history"></i>คำขอทั้งหมด</a></div>
+</div>
+{% if items %}
+<div class="stack">
+  {% for r in items %}
+  <section class="panel">
+    <div class="panel-head">
+      <div><h3>{{ r.item_name }} <span class="muted num">× {{ r.quantity }}</span></h3>
+        <p><span class="code-chip">{{ r.item_code }}</span> {{ r.category }}{% if r.branch_name %} · สาขา {{ r.branch_name }}{% endif %} · ขอโดย {{ r.submitted_by }} เมื่อ {{ r.created_at|datetime }}</p></div>
+      <span class="tag warning">รออนุมัติ</span>
+    </div>
+    <form class="panel-body row" method="post" action="{{ url_for('requests.decide', request_id=r.id) }}">
+      {{ ui.csrf() }}
+      {% if r.reason %}<p class="full" style="width:100%;margin:0 0 4px"><span class="muted">เหตุผล:</span> {{ r.reason }}</p>{% endif %}
+      <input class="input grow" name="note" placeholder="หมายเหตุถึงผู้ขอ (ไม่บังคับ)" aria-label="หมายเหตุ" style="flex:1 1 260px">
+      <button class="btn btn-danger" name="decision" value="REJECTED" type="submit"><i data-lucide="x"></i>ไม่อนุมัติ</button>
+      <button class="btn btn-primary" name="decision" value="APPROVED" type="submit"><i data-lucide="check"></i>อนุมัติ</button>
+    </form>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<section class="panel">{{ ui.empty('inbox', 'ไม่มีคำขอที่รออยู่', 'คำขอใหม่จากทีมจะแสดงที่นี่') }}</section>
+{% endif %}
+{% endblock %}

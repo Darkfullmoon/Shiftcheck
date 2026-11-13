@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}สรุปผลการตรวจ #{{ audit.id }}{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('audits.detail', audit_id=audit.id) }}"><i data-lucide="arrow-left"></i>กลับไปรายงานตรวจ #{{ audit.id }}</a>
+<div class="page-head">
+  <div>
+    <h1>สรุปผลการตรวจสาขา {{ audit.branch_name }}</h1>
+    <p>{{ audit.audit_date|date('%d %B %Y') }} · {{ audit.template_name }}</p>
+  </div>
+  <div class="page-actions">
+    {% if current_user.is_admin %}<a class="btn" href="{{ url_for('audits.summary', audit_id=audit.id, refresh=1) }}"><i data-lucide="refresh-cw"></i>สร้างใหม่</a>{% endif %}
+    <button class="btn" type="button" onclick="window.print()"><i data-lucide="printer"></i>พิมพ์</button>
+  </div>
+</div>
+
+<div class="grid grid-main">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>สรุปสำหรับผู้บริหาร</h2>
+      {% if audit.summary_source == 'ai' %}<span class="tag info">เขียนโดย AI</span>{% else %}<span class="tag">สร้างจากผลการตรวจ</span>{% endif %}
+    </div>
+    <div class="panel-body prose">{{ audit.summary_text|markdown }}</div>
+    {% if audit.summary_source != 'ai' %}
+    <div class="panel-foot muted small">{% if ai_enabled %}บริการ AI ไม่ตอบสนอง สรุปนี้จึงสร้างจากผลการตรวจโดยตรง{% else %}เพิ่ม Gemini API key เพื่อให้ AI เขียนสรุป ฉบับนี้สร้างจากผลการตรวจโดยตรง{% endif %}</div>
+    {% endif %}
+  </section>
+
+  <div class="stack-lg">
+    <section class="panel progress-card"><div class="panel-body">
+      <div class="muted small">อัตราผ่านเกณฑ์</div><div class="score num">{{ audit.rate }}%</div>
+      <dl class="kv" style="margin-top:12px"><dt>ผ่าน</dt><dd>{{ audit.passed_items }}</dd><dt>ไม่ผ่าน</dt><dd>{{ audit.failed_items }}</dd><dt>ไม่เกี่ยวข้อง</dt><dd>{{ audit.na_items }}</dd></dl>
+    </div></section>
+    <section class="panel">
+      <div class="panel-head"><h3>รายการที่ไม่ผ่าน</h3></div>
+      {% if failed %}
+      <ul class="list-plain">{% for f in failed %}<li><span class="tag danger">#{{ f.no }}</span><div class="what"><strong>{{ f.title }}</strong><small>{{ f.section }}</small></div></li>{% endfor %}</ul>
+      {% else %}<p class="muted" style="padding:14px 18px;margin:0">ไม่มี ทุกรายการผ่านเกณฑ์</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

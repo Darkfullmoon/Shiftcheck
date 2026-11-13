@@ -1,0 +1,42 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}เช็กลิสต์{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>เช็กลิสต์</h1><p>รายการที่ใช้ตรวจสาขา แก้ไขได้ทุกเมื่อโดยไม่กระทบผลตรวจที่ส่งไปแล้ว</p></div>
+  <div class="page-actions"><a class="btn btn-primary" href="{{ url_for('admin.new_template') }}"><i data-lucide="plus"></i>สร้างเช็กลิสต์</a></div>
+</div>
+<section class="panel">
+  {% if templates %}
+  <div class="table-wrap">
+  <table class="table responsive">
+    <thead><tr><th>เช็กลิสต์</th><th>ขนาด</th><th>รูป</th><th>ใช้งานแล้ว</th><th>สถานะ</th><th class="actions"><span class="sr-only">จัดการ</span></th></tr></thead>
+    <tbody>
+    {% for t in templates %}
+    <tr>
+      <td class="primary"><a class="cell-title" href="{{ url_for('admin.edit_template', template_id=t.id) }}">{{ t.name }}</a><span class="cell-sub">{{ t.description or 'ไม่มีคำอธิบาย' }}</span></td>
+      <td data-label="ขนาด">{{ t.section_count }} หมวด {{ t.item_count }} รายการ</td>
+      <td data-label="รูป">{{ t.photo_min }}–{{ t.photo_max }} รูป</td>
+      <td data-label="ใช้งานแล้ว" class="num">{{ t.audit_count }} ครั้ง</td>
+      <td>{% if t.is_default %}<span class="tag success">ค่าเริ่มต้น</span>{% elif t.is_active %}<span class="tag info">เปิดใช้งาน</span>{% else %}<span class="tag">ปิดใช้งาน</span>{% endif %}</td>
+      <td class="actions">
+        <a class="btn btn-sm" href="{{ url_for('admin.edit_template', template_id=t.id) }}">แก้ไข</a>
+        {% call ui.more_menu('การทำงานเพิ่มเติมของ ' ~ t.name, small=True) %}
+          <form method="post" action="{{ url_for('admin.template_action', template_id=t.id) }}">{{ ui.csrf() }}
+            {% if t.is_active and not t.is_default %}<button name="action" value="default" role="menuitem"><i data-lucide="star"></i>ตั้งเป็นค่าเริ่มต้น</button>{% endif %}
+            <button name="action" value="duplicate" role="menuitem"><i data-lucide="copy"></i>ทำสำเนา</button>
+            {% if not t.is_default %}<button name="action" value="{{ 'deactivate' if t.is_active else 'activate' }}" role="menuitem"><i data-lucide="{{ 'eye-off' if t.is_active else 'eye' }}"></i>{{ 'ปิดใช้งาน' if t.is_active else 'เปิดใช้งาน' }}</button>{% endif %}
+          </form>
+          {% if not t.audit_count and not t.is_default %}
+          <form method="post" action="{{ url_for('admin.template_action', template_id=t.id) }}" data-confirm="การลบไม่สามารถย้อนกลับได้" data-confirm-title="ลบ “{{ t.name }}”?" data-confirm-label="ลบ" data-danger>{{ ui.csrf() }}<input type="hidden" name="action" value="delete"><button class="danger" type="submit" role="menuitem"><i data-lucide="trash-2"></i>ลบ</button></form>
+          {% endif %}
+        {% endcall %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}{{ ui.empty('list-todo', 'ยังไม่มีเช็กลิสต์', 'สร้างเช็กลิสต์แรกเพื่อให้สาขาเริ่มตรวจได้', url_for('admin.new_template'), 'สร้างเช็กลิสต์') }}{% endif %}
+</section>
+{% endblock %}

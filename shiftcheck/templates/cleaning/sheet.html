@@ -1,0 +1,142 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}ตารางทำความสะอาด{% endblock %}
+{% set editable_days = scope.days %}
+{% set editable_weeks = scope.weeks %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>ทำความสะอาด</h1>
+    <p>{% if current_user.is_admin %}ผู้ดูแลระบบแก้ไขได้ทุกวันของเดือน{% elif layout.is_current_month %}ติ๊กงานของวันนี้เมื่อทำเสร็จ แล้วกดบันทึก วันก่อนหน้าจะถูกล็อก{% else %}เดือนนี้ปิดแล้ว ดูได้อย่างเดียว{% endif %}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="{{ url_for('cleaning.history') }}"><i data-lucide="history"></i>เดือนก่อน ๆ</a>
+    {% if record %}<a class="btn" href="{{ url_for('cleaning.export_pdf', schedule_id=record.id) }}" target="_blank" rel="noopener"><i data-lucide="file-down"></i>PDF</a>{% endif %}
+  </div>
+</div>
+
+<form class="panel" method="get" style="margin-bottom:18px">
+  <div class="panel-body filters">
+    {% if branches|length > 1 %}<div class="field grow"><label for="branch">สาขา</label>{{ ui.branch_select(branches, branch.id, auto=True) }}</div>
+    {% else %}<input type="hidden" name="branch" value="{{ branch.id }}"><div class="field grow"><span class="label">สาขา</span><strong>{{ branch.name }}</strong></div>{% endif %}
+    <div class="field"><span class="label">เดือน</span>
+      <div class="row" style="gap:4px">
+        <a class="icon-btn" href="{{ url_for('cleaning.sheet', branch=branch.id, month=prev_month) }}" aria-label="เดือนก่อนหน้า"><i data-lucide="chevron-left"></i></a>
+        <input class="input" type="month" name="month" value="{{ month }}" onchange="this.form.submit()" aria-label="เดือน" style="width:auto">
+        <a class="icon-btn" href="{{ url_for('cleaning.sheet', branch=branch.id, month=next_month) }}" aria-label="เดือนถัดไป"><i data-lucide="chevron-right"></i></a>
+      </div>
+    </div>
+    <div class="field"><span class="label">งานรายวันที่ทำแล้ว</span><div style="min-width:160px">{{ ui.meter(completion) }}</div></div>
+  </div>
+</form>
+
+{% if not layout.daily_tasks and not layout.weekly_tasks %}
+  <section class="panel">{{ ui.empty('brush', 'ยังไม่มีงานทำความสะอาด', 'ผู้ดูแลระบบเป็นผู้กำหนดงานรายวันและรายสัปดาห์', url_for('admin.cleaning_tasks') if current_user.is_admin else None, 'ตั้งค่างาน') }}</section>
+{% else %}
+<form method="post" id="sheet-form" data-busy>
+  {{ ui.csrf() }}
+  <input type="hidden" name="branch" value="{{ branch.id }}">
+  <input type="hidden" name="month" value="{{ month }}">
+  <input type="hidden" name="sheet_json" id="sheet_json">
+
+  <section class="panel">
+    <div class="panel-head">
+      <div><h2>งานรายวัน เดือน{{ layout.label }}</h2><p>{% if record %}บันทึกล่าสุดโดย {{ record.submitted_by }} เมื่อ {{ record.updated_at|datetime }}{% else %}ยังไม่มีการบันทึกของเดือนนี้{% endif %}</p></div>
+      {% if editable_days %}<button class="btn btn-primary" type="submit"><i data-lucide="save"></i>บันทึกตาราง</button>{% endif %}
+    </div>
+    <div class="sheet-wrap" data-sheet-scroll>
+      <table class="sheet">
+        <thead>
+          <tr>
+            <th class="task" scope="col">งาน</th>
+            {% for d in layout.days %}
+              <th scope="col" class="{% if d.is_today %}today{% elif d.is_weekend %}weekend{% endif %}" {% if d.is_today %}data-today{% endif %}>{{ d.day }}<small>{{ d.weekday }}</small></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for task in layout.daily_tasks %}
+          <tr class="{% if task.is_break %}break{% endif %}">
+            <th class="task" scope="row">{{ task.title }}{% if task.time_slot %}<small>{{ task.time_slot }}</small>{% endif %}</th>
+            {% for d in layout.days %}
+              <td class="{% if d.is_today %}today{% elif d.is_weekend %}weekend{% endif %}">
+                {% if not task.is_break %}
+                  {% set key = task.id ~ ':' ~ d.day %}
+                  <label class="cell-check"><input type="checkbox" data-daily="{{ key }}" {% if sheet.daily.get(key) %}checked{% endif %} {% if d.day not in editable_days %}disabled{% endif %} aria-label="{{ task.title }} วันที่ {{ d.day }}"></label>
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          {% for field, label in [('done_by', 'ผู้ทำ'), ('checked_by', 'ผู้ตรวจ')] %}
+          <tr class="sign-row">
+            <th class="task" scope="row">{{ label }}<small>ชื่อย่อ</small></th>
+            {% for d in layout.days %}
+              <td class="{% if d.is_today %}today{% elif d.is_weekend %}weekend{% endif %}">
+                <input class="cell-initials" maxlength="4" data-initials="{{ field }}" data-day="{{ d.day }}" value="{{ sheet[field].get(d.day|string, '') }}" {% if d.day not in editable_days %}readonly tabindex="-1"{% endif %} aria-label="{{ label }} วันที่ {{ d.day }}">
+              </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if layout.weekly_tasks %}
+  <section class="panel" style="margin-top:18px">
+    <div class="panel-head"><div><h2>งานทำความสะอาดใหญ่ประจำสัปดาห์</h2><p>สัปดาห์ละ 1 งาน หมุนเวียนกัน {{ layout.weekly_tasks|length }} งาน</p></div></div>
+    <div class="panel-body">
+      <div class="week-cards">
+        {% for week in layout.weeks %}
+          {% set entry = sheet.weekly.get(week.start) or {} %}
+          {% set editable = week.start in editable_weeks %}
+          <div class="week-card{% if week.is_current %} current{% endif %}" data-week="{{ week.start }}">
+            <div class="row between"><span class="dates">{{ week.start|date('%d %b') }} – {{ week.end|date('%d %b') }}</span>{% if entry.done_on %}<span class="tag success">ทำแล้ว</span>{% elif week.is_current %}<span class="tag warning">สัปดาห์นี้</span>{% endif %}</div>
+            <div class="task-name">{{ week.task.title if week.task else '—' }}</div>
+            <div class="fields">
+              <input class="input input-sm" type="date" data-weekly="done_on" value="{{ entry.done_on or '' }}" min="{{ week.start }}" max="{{ week.end }}" {% if not editable %}readonly{% endif %} aria-label="วันที่ทำ">
+              <input class="input input-sm" data-weekly="done_by" maxlength="4" placeholder="ผู้ทำ" value="{{ entry.done_by or '' }}" {% if not editable %}readonly{% endif %} aria-label="ผู้ทำ">
+              <input class="input input-sm" data-weekly="checked_by" maxlength="4" placeholder="ผู้ตรวจ" value="{{ entry.checked_by or '' }}" {% if not editable %}readonly{% endif %} aria-label="ผู้ตรวจ">
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% if editable_weeks %}<div class="panel-foot row between"><span class="muted small">ข้อมูลรายสัปดาห์จะบันทึกพร้อมตารางรายวัน</span><button class="btn btn-primary" type="submit"><i data-lucide="save"></i>บันทึกตาราง</button></div>{% endif %}
+  </section>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById('sheet-form');
+  if (!form) return;
+  const today = document.querySelector('[data-today]');
+  const scroller = document.querySelector('[data-sheet-scroll]');
+  // Bring today's column into view just right of the sticky task column, with two days of context.
+  // Runs after fonts load, because column widths change once the web fonts are applied.
+  const taskCol = document.querySelector('.sheet thead .task');
+  const scrollToToday = () => {
+    if (!today || !scroller || !taskCol) return;
+    const offset = today.getBoundingClientRect().left - scroller.getBoundingClientRect().left;
+    scroller.scrollLeft = Math.max(0, scroller.scrollLeft + offset - taskCol.offsetWidth - 2 * today.offsetWidth);
+  };
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(scrollToToday);
+  form.addEventListener('submit', () => {
+    const data = { daily: {}, done_by: {}, checked_by: {}, weekly: {} };
+    form.querySelectorAll('[data-daily]').forEach((c) => { if (c.checked) data.daily[c.dataset.daily] = true; });
+    form.querySelectorAll('[data-initials]').forEach((i) => { if (i.value.trim()) data[i.dataset.initials][i.dataset.day] = i.value.trim().toUpperCase(); });
+    form.querySelectorAll('[data-week]').forEach((card) => {
+      const entry = {};
+      card.querySelectorAll('[data-weekly]').forEach((i) => { entry[i.dataset.weekly] = i.value.trim(); });
+      data.weekly[card.dataset.week] = entry;
+    });
+    document.getElementById('sheet_json').value = JSON.stringify(data);
+  });
+})();
+</script>
+{% endblock %}

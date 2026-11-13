@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+{% import "macros.html" as ui with context %}
+{% block title %}รายงานตรวจ #{{ audit.id }}{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('audits.index') }}"><i data-lucide="arrow-left"></i>ตรวจสาขา</a>
+<div class="page-head">
+  <div>
+    <h1>{{ audit.branch_name }} · {{ audit.audit_date|date('%d %B %Y') }}</h1>
+    <p>{{ audit.template_name }} · รายงาน #{{ audit.id }} · ส่งโดย {{ audit.submitted_by }} เวลา {{ audit.created_at|time }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="{{ url_for('audits.summary', audit_id=audit.id) }}"><i data-lucide="sparkles"></i>สรุปผล</a>
+    <a class="btn" href="{{ url_for('audits.export_pdf', audit_id=audit.id) }}" target="_blank" rel="noopener"><i data-lucide="file-down"></i>PDF</a>
+    {% if current_user.is_admin %}
+    {% call ui.more_menu() %}
+      <form method="post" action="{{ url_for('audits.delete', audit_id=audit.id) }}" data-confirm="รายงานตรวจ รูปถ่าย และลายเซ็นจะถูกลบถาวร" data-confirm-title="ลบรายงานตรวจ #{{ audit.id }}?" data-confirm-label="ลบ" data-danger>
+        {{ ui.csrf() }}<button class="danger" type="submit" role="menuitem"><i data-lucide="trash-2"></i>ลบรายงานตรวจนี้</button>
+      </form>
+    {% endcall %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="form-layout">
+  <div class="stack-lg">
+    {% if failed %}
+    <section class="panel">
+      <div class="panel-head"><div><h2>ต้องแก้ไข</h2><p>ไม่ผ่าน {{ failed|length }} รายการ</p></div></div>
+      <ul class="list-plain">
+        {% for f in failed %}
+          <li><span class="tag danger">#{{ f.no }}</span><div class="what"><strong>{{ f.title }}</strong><small>{{ f.section }}{% if f.notes %} — {{ f.notes }}{% endif %}</small></div></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% for section in payload.sections or [] %}
+    <section class="panel">
+      <div class="panel-head section-title">
+        <h2>{{ section.title }}</h2>
+        {% set sfail = section['items']|selectattr('status', 'equalto', 'FAIL')|list|length %}
+        <span class="count">ผ่าน {{ section['items']|length - sfail }} จาก {{ section['items']|length }} รายการ</span>
+      </div>
+      {% for item in section['items'] %}
+      <div class="check-item{% if item.status == 'FAIL' %} is-fail{% endif %}">
+        <span class="no">{{ item.no }}</span>
+        <div>
+          <div class="text">{{ item.title }}</div>
+          {% for ev in item.evidence or [] %}{% if ev.value %}<div class="guidance"><strong>{{ ev.label }}:</strong> {{ ev.value|date if ev.type == 'date' else ev.value }}</div>{% endif %}{% endfor %}
+        </div>
+        {{ ui.tag(item.status) }}
+      </div>
+      {% endfor %}
+    </section>
+    {% endfor %}
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>พนักงานประจำวัน</h2><p>อยู่ที่สาขา {{ on_site }} คน</p></div></div>
+      <div class="table-wrap">{{ ui.staffing_table(staffing_fields, payload.staffing) }}</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>การประชุมเช้า</h2></div>
+      {{ ui.notes_list(payload.briefing, 'ไม่มีบันทึกการประชุมเช้า') }}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>รูปถ่าย</h2><p>แนบ {{ (payload.photos or [])|length }} รูป</p></div></div>
+      <div class="panel-body">{{ ui.photo_gallery(payload.photos) }}</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>บันทึกและลงชื่อ</h2></div>
+      <div class="panel-body stack">
+        {% if audit.notes %}<p>{{ audit.notes }}</p>{% endif %}
+        {{ ui.signatures_view(payload.signoffs) }}
+      </div>
+    </section>
+  </div>
+
+  <aside class="form-aside stack">
+    <section class="panel progress-card">
+      <div class="panel-body">
+        <div class="muted small">อัตราผ่านเกณฑ์</div>
+        <div class="score num">{{ audit.rate }}%</div>
+        {% set total = audit.total_items or 1 %}
+        <div class="progress-bar" aria-hidden="true"><span class="p" style="width:{{ audit.passed_items / total * 100 }}%"></span><span class="f" style="width:{{ audit.failed_items / total * 100 }}%"></span><span class="n" style="width:{{ audit.na_items / total * 100 }}%"></span></div>
+        <div class="legend"><span><i style="background:var(--ok)"></i>ผ่าน {{ audit.passed_items }}</span><span><i style="background:var(--bad)"></i>ไม่ผ่าน {{ audit.failed_items }}</span><span><i style="background:var(--line-strong)"></i>ไม่เกี่ยวข้อง {{ audit.na_items }}</span></div>
+      </div>
+    </section>
+    {% if current_user.is_admin %}{{ ui.verify_panel(audit, url_for('audits.verify', audit_id=audit.id)) }}{% else %}
+      <section class="panel"><div class="panel-body row between"><span>การตรวจรับรอง</span>{{ ui.verified(audit) }}</div></section>
+    {% endif %}
+    {{ ui.photo_check_panel(audit, url_for('audits.photo_check', audit_id=audit.id)) }}
+  </aside>
+</div>
+{% endblock %}
