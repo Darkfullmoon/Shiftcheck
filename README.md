@@ -19,14 +19,26 @@
 - ส่งออก PDF
 - (ไม่บังคับ) ใช้ AI ของ Google Gemini สรุปผลและตรวจรูป
 
+## ภาพหน้าจอ
+
+| ตรวจสาขา | รายละเอียดการตรวจ |
+|---|---|
+| ![ฟอร์มตรวจสาขา](docs/screenshots/audit-form.png) | ![รายละเอียดการตรวจ](docs/screenshots/audit-detail.png) |
+| **ติดตามการส่งงาน** | **แก้ไขแม่แบบเช็กลิสต์** |
+| ![ติดตามการส่งงาน](docs/screenshots/submission-monitor.png) | ![แก้ไขแม่แบบ](docs/screenshots/template-editor.png) |
+| **ตารางทำความสะอาด** | **สถิติลูกค้า** |
+| ![ตารางทำความสะอาด](docs/screenshots/cleaning-schedule.png) | ![สถิติลูกค้า](docs/screenshots/visitor-analytics.png) |
+| **โหมดมืด** | **บนมือถือ** |
+| ![โหมดมืด](docs/screenshots/dashboard-dark.png) | <img src="docs/screenshots/mobile-dashboard-dark.png" width="48%"> <img src="docs/screenshots/mobile-audit.png" width="48%"> |
+
 ## วิธีติดตั้งและใช้งาน
 
 ต้องมี **Python 3.11 ขึ้นไป** และ **Docker**
 
 **1. ดาวน์โหลดโค้ดและตั้งค่า**
 ```bash
-git clone https://github.com/Darkfullmoon/LXP_Sale-Moniter.git
-cd LXP_Sale-Moniter
+git clone https://github.com/Darkfullmoon/shiftcheck.git
+cd shiftcheck
 cp .env.example .env
 ```
 เปิดไฟล์ `.env` แล้วใส่ `DB_PASSWORD`, `DB_ROOT_PASSWORD` และ `SECRET_KEY`
